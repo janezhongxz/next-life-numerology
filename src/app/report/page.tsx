@@ -19,14 +19,14 @@ function ReportContent() {
   const [loadingText, setLoadingText] = useState('正在加载数据...')
   const [showSettings, setShowSettings] = useState(false)
   const [apiKey, setApiKey] = useState('')
-  const [selectedModel, setSelectedModel] = useState('gpt-4o')
+  const [selectedProvider, setSelectedProvider] = useState('deepseek')
 
   useEffect(() => {
     // 从 localStorage 加载设置
-    const savedKey = localStorage.getItem('openai_api_key') || ''
-    const savedModel = localStorage.getItem('openai_model') || 'gpt-4o'
+    const savedKey = localStorage.getItem('api_key') || 'sk-570adfb7923a4248b65fcafa9a26d520'
+    const savedProvider = localStorage.getItem('api_provider') || 'deepseek'
     setApiKey(savedKey)
-    setSelectedModel(savedModel)
+    setSelectedProvider(savedProvider)
 
     // 解析URL数据
     const dataStr = searchParams.get('data')
@@ -65,32 +65,51 @@ function ReportContent() {
         })
 
         // 检查是否有API Key
-        const key = localStorage.getItem('openai_api_key')
-        const model = localStorage.getItem('openai_model') || 'gpt-4o'
+        const provider = localStorage.getItem('api_provider') || 'deepseek'
+        const key = localStorage.getItem('api_key') || 'sk-570adfb7923a4248b65fcafa9a26d520'
 
-        if (!key) {
-          // 演示模式
-          setLoadingText('演示模式：正在生成示例报告...')
-          setReportContent(generateDemoReport(reportData))
+        if (!key || key === 'sk-570adfb7923a4248b65fcafa9a26d520') {
+          // 使用默认 DeepSeek API
+          setLoadingText('正在生成详细报告（使用 DeepSeek AI）...')
+          const response = await fetch('https://api.deepseek.com/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer sk-570adfb7923a4248b65fcafa9a26d520`
+            },
+            body: JSON.stringify({
+              model: 'deepseek-chat',
+              messages: [{ role: 'user', content: prompt }],
+              temperature: 0.7,
+              max_tokens: 4000
+            })
+          })
+
+          if (!response.ok) {
+            throw new Error(`API错误: ${response.status}`)
+          }
+
+          const data = await response.json()
+          setReportContent(data.choices[0].message.content)
         } else {
-          // 调用API
-          setLoadingText('正在生成详细报告（30-60秒）...')
-          const response = await fetch(
-            `${localStorage.getItem('openai_api_url') || 'https://api.openai.com/v1'}/chat/completions`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${key}`
-              },
-              body: JSON.stringify({
-                model,
-                messages: [{ role: 'user', content: prompt }],
-                temperature: 0.7,
-                max_tokens: 4000
-              })
-            }
-          )
+          // 自定义API
+          setLoadingText('正在生成详细报告...')
+          const baseURL = provider === 'deepseek' ? 'https://api.deepseek.com' : 'https://api.openai.com/v1'
+          const model = provider === 'deepseek' ? 'deepseek-chat' : 'gpt-4o'
+          
+          const response = await fetch(`${baseURL}/chat/completions`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${key}`
+            },
+            body: JSON.stringify({
+              model,
+              messages: [{ role: 'user', content: prompt }],
+              temperature: 0.7,
+              max_tokens: 4000
+            })
+          })
 
           if (!response.ok) {
             throw new Error(`API错误: ${response.status}`)
@@ -208,8 +227,8 @@ ageGroup === '天命整合' ? '从"为生存而战"转向"为使命而活"的关
   }
 
   const handleSaveSettings = () => {
-    localStorage.setItem('openai_api_key', apiKey)
-    localStorage.setItem('openai_model', selectedModel)
+    localStorage.setItem('api_key', apiKey)
+    localStorage.setItem('api_provider', selectedProvider)
     setShowSettings(false)
     window.location.reload()
   }
@@ -267,14 +286,14 @@ ageGroup === '天命整合' ? '从"为生存而战"转向"为使命而活"的关
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">模型</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">API供应商</label>
                 <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
+                  value={selectedProvider}
+                  onChange={(e) => setSelectedProvider(e.target.value)}
                   className="w-full px-4 py-2 border rounded-lg"
                 >
-                  <option value="gpt-4o">GPT-4o</option>
-                  <option value="gpt-4o-mini">GPT-4o-mini</option>
+                  <option value="deepseek">DeepSeek</option>
+                  <option value="openai">OpenAI</option>
                 </select>
               </div>
 
