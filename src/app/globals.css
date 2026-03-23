@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gradient-to-br from-purple-500 via-indigo-500 to-orange-400 min-h-screen;
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 15mm 20mm;
+  }
+  body {
+    font-size: 11pt !important;
+    line-height: 1.7 !important;
+    color: #1a1a1a !important;
+    background: white !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

@@ -1,0 +1,430 @@
+'use client'
+
+import { useState, useEffect, Suspense } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { CalculatorResult } from '@/lib/calculator'
+import { buildReportPrompt, getAgeGroup, getYearTheme } from '@/lib/report-prompt'
+
+interface ReportData extends CalculatorResult {
+  birthDate: string
+  name: string
+  age: number
+}
+
+function ReportContent() {
+  const searchParams = useSearchParams()
+  const [reportData, setReportData] = useState<ReportData | null>(null)
+  const [reportContent, setReportContent] = useState<string>('')
+  const [loading, setLoading] = useState(true)
+  const [loadingText, setLoadingText] = useState('正在加载数据...')
+  const [showSettings, setShowSettings] = useState(false)
+  const [apiKey, setApiKey] = useState('')
+  const [selectedModel, setSelectedModel] = useState('gpt-4o')
+
+  useEffect(() => {
+    // 从 localStorage 加载设置
+    const savedKey = localStorage.getItem('openai_api_key') || ''
+    const savedModel = localStorage.getItem('openai_model') || 'gpt-4o'
+    setApiKey(savedKey)
+    setSelectedModel(savedModel)
+
+    // 解析URL数据
+    const dataStr = searchParams.get('data')
+    if (!dataStr) {
+      setLoading(false)
+      return
+    }
+
+    try {
+      const data = JSON.parse(decodeURIComponent(dataStr))
+      setReportData(data)
+    } catch (e) {
+      console.error('数据解析错误', e)
+      setLoading(false)
+    }
+  }, [searchParams])
+
+  useEffect(() => {
+    if (!reportData) return
+
+    const generateReport = async () => {
+      setLoadingText('正在构建报告框架...')
+
+      try {
+        const prompt = buildReportPrompt({
+          birthDate: reportData.birthDate,
+          lifePath: reportData.lifePath,
+          attitude: reportData.attitude,
+          birthDay: reportData.birthDay,
+          personalYear: reportData.personalYear,
+          birthGridCounts: reportData.birthGridCounts,
+          missingNumbers: reportData.missingNumbersBirth,
+          dominantNumber: reportData.dominantNumber,
+          age: reportData.age,
+          lang: 'zh'
+        })
+
+        // 检查是否有API Key
+        const key = localStorage.getItem('openai_api_key')
+        const model = localStorage.getItem('openai_model') || 'gpt-4o'
+
+        if (!key) {
+          // 演示模式
+          setLoadingText('演示模式：正在生成示例报告...')
+          setReportContent(generateDemoReport(reportData))
+        } else {
+          // 调用API
+          setLoadingText('正在生成详细报告（30-60秒）...')
+          const response = await fetch(
+            `${localStorage.getItem('openai_api_url') || 'https://api.openai.com/v1'}/chat/completions`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${key}`
+              },
+              body: JSON.stringify({
+                model,
+                messages: [{ role: 'user', content: prompt }],
+                temperature: 0.7,
+                max_tokens: 4000
+              })
+            }
+          )
+
+          if (!response.ok) {
+            throw new Error(`API错误: ${response.status}`)
+          }
+
+          const data = await response.json()
+          setReportContent(data.choices[0].message.content)
+        }
+      } catch (e: any) {
+        console.error('生成错误:', e)
+        setReportContent(generateDemoReport(reportData))
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    generateReport()
+  }, [reportData])
+
+  const generateDemoReport = (data: ReportData): string => {
+    const ageGroup = getAgeGroup(data.age)
+    const theme = data.personalYear ? getYearTheme(data.personalYear) : getYearTheme(1)
+
+    return `# 🌟 生命数字战略蓝图
+
+**${data.birthDate}**
+
+---
+
+★ 核心数字速览 ★
+
+| 生命路径数 | 生日数 | 态度数 | 流年 |
+|:---:|:---:|:---:|:---:|
+| ${data.lifePath} | ${data.birthDay} | ${data.attitude} | ${data.personalYear} |
+
+---
+
+## 📜 总纲：一句话判词
+
+> 你的人生主轨是 **${data.lifePath}**，你的触发方式是 **${data.attitude}**，而今年（${data.personalYear} 流年）逼你把 ${data.missingNumbersBirth.length > 0 ? data.missingNumbersBirth[0] : '你的核心课题'} 从"缺口"做成"能力"。
+
+---
+
+## 🔮 第一章：出厂设置
+
+### 1.1 人生主轨：${data.lifePath}
+
+**${data.lifePath}号主轨** 意味着你天生倾向于用【战略性思维】来推进生活和工作。你最容易赢在【系统规划和长远布局】；你也最需要警惕【过度计划而行动迟缓】。
+
+### 1.2 天赋九宫格
+
+你的最强数字是 **${data.dominantNumber}**，它像是你的"发射台"——每次你把能量对准它，事情就会自动顺利。
+
+| 数字 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 |
+|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
+| 次数 | ${data.birthGridCounts[1]} | ${data.birthGridCounts[2]} | ${data.birthGridCounts[3]} | ${data.birthGridCounts[4]} | ${data.birthGridCounts[5]} | ${data.birthGridCounts[6]} | ${data.birthGridCounts[7]} | ${data.birthGridCounts[8]} | ${data.birthGridCounts[9]} |
+
+---
+
+## ⚙️ 第二章：运作方式
+
+### 2.1 你的行动策略（生日数 ${data.birthDay}）
+
+你的生日数决定了你解决问题的"默认手法"是【独立思考后行动】。
+
+### 2.2 你的触发与沟通方式（态度数 ${data.attitude}）
+
+你的 **${data.attitude} 号态度数** 让你在面对【挑战和压力】时立刻【激活防御反应】。
+
+---
+
+## 📚 第三章：缺失数/提升策略
+
+${data.missingNumbersBirth.length > 0 ? data.missingNumbersBirth.map((m, i) => `
+### 3.${i+1} 缺失数：${m}
+
+数字 **${m}** 代表你人生某个需要"补课"的能力区。提升策略：识别触发条件 → 替代动作 → 复盘记录。
+`).join('') : `
+你没有出生缺失数——这意味着你的人生没有明显的"天赋缺口"。
+`}
+
+---
+
+## 🎯 第四章：${ageGroup}专项指南（${data.age}岁）
+
+**阶段定位：** ${ageGroup === '天赋养育' ? '成长关键期，原生能量的保护比任何成就都重要。' :
+ageGroup === '赛道选择' ? '学业和早期职业探索的黄金期，试错成本最低。' :
+ageGroup === '黄金实战' ? '土星回归前的立身之本，是建立事业和关系的核心期。' :
+ageGroup === '天命整合' ? '从"为生存而战"转向"为使命而活"的关键转折。' :
+'从"被疗愈者"成为"疗愈者"。'}
+
+---
+
+## 🚀 第五章：本流年战略
+
+### 5.1 流年主题总宣言
+
+**【${data.personalYear} 流年】核心主题：${theme.type}】
+
+- **机会窗口：** ${theme.opportunity}
+- **风险预警：** ${theme.risk}
+
+---
+
+## 🌟 结语
+
+你的 **${data.lifePath}** 主轨决定了你终将走向【创造和引领】；你的 **${data.attitude}** 触发机制决定了你会在【被否定】时变得强或失控。
+
+而缺失数 **【${data.missingNumbersBirth.length > 0 ? data.missingNumbersBirth.join('、') : '无'}】** 就是你今年要用训练完成的"升级钥匙"。
+
+---
+
+*报告生成：Life Numerology | lifenumerology.shop*
+*（演示模式 - 配置API Key可生成完整报告）*`
+  }
+
+  const handleSaveSettings = () => {
+    localStorage.setItem('openai_api_key', apiKey)
+    localStorage.setItem('openai_model', selectedModel)
+    setShowSettings(false)
+    window.location.reload()
+  }
+
+  const handlePrint = () => {
+    window.print()
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-500 via-indigo-500 to-orange-400 flex flex-col items-center justify-center">
+        <div className="bg-white/90 rounded-3xl p-8 shadow-2xl max-w-md text-center">
+          <div className="spinner mx-auto mb-4" />
+          <p className="text-lg font-medium text-gray-800">{loadingText}</p>
+          <p className="text-sm text-gray-500 mt-2">预计需要 30-60 秒</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-purple-500 via-indigo-500 to-orange-400">
+      {/* 工具栏 */}
+      <div className="no-print fixed top-4 right-4 flex gap-2 z-50">
+        <button
+          onClick={() => setShowSettings(true)}
+          className="bg-white text-purple-600 px-4 py-2 rounded-lg shadow-lg hover:bg-purple-50 transition font-medium"
+        >
+          ⚙️ 设置
+        </button>
+        <button
+          onClick={handlePrint}
+          className="bg-white text-purple-600 px-4 py-2 rounded-lg shadow-lg hover:bg-purple-50 transition font-medium"
+        >
+          📄 下载PDF
+        </button>
+      </div>
+
+      {/* 设置弹窗 */}
+      {showSettings && (
+        <div className="no-print fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">API 设置</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
+                <input
+                  type="password"
+                  value={apiKey}
+                  onChange={(e) => setApiKey(e.target.value)}
+                  placeholder="sk-..."
+                  className="w-full px-4 py-2 border rounded-lg"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">模型</label>
+                <select
+                  value={selectedModel}
+                  onChange={(e) => setSelectedModel(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg"
+                >
+                  <option value="gpt-4o">GPT-4o</option>
+                  <option value="gpt-4o-mini">GPT-4o-mini</option>
+                </select>
+              </div>
+
+              <div className="bg-yellow-50 p-3 rounded-lg text-sm text-yellow-700">
+                ⚠️ 演示模式：未配置API Key时会生成示例报告
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={handleSaveSettings}
+                className="flex-1 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+              >
+                保存并重新生成
+              </button>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 报告主体 */}
+      <div className="max-w-3xl mx-auto px-4 py-8 pt-16">
+        <div className="bg-white rounded-3xl shadow-2xl p-8 md:p-12 report-content">
+          {/* 报告内容 - Markdown渲染 */}
+          <div dangerouslySetInnerHTML={{ __html: renderMarkdown(reportContent) }} />
+
+          {/* 底部 */}
+          <div className="mt-12 pt-6 border-t border-gray-200 text-center text-gray-400 text-sm">
+            <p>Life Numerology</p>
+            <p className="mt-1">lifenumerology.shop</p>
+          </div>
+        </div>
+      </div>
+
+      <style jsx global>{`
+        .report-content {
+          font-size: 14px;
+          line-height: 1.8;
+        }
+        .report-content h1 {
+          font-family: 'Playfair Display', serif;
+          font-size: 28px;
+          font-weight: 700;
+          text-align: center;
+          margin-bottom: 1rem;
+        }
+        .report-content h2 {
+          font-size: 20px;
+          font-weight: 600;
+          color: #7c3aed;
+          margin-top: 2rem;
+          margin-bottom: 1rem;
+          padding-bottom: 0.5rem;
+          border-bottom: 2px solid #e9d5ff;
+        }
+        .report-content h3 {
+          font-size: 16px;
+          font-weight: 600;
+          color: #4f46e5;
+          margin-top: 1.5rem;
+          margin-bottom: 0.75rem;
+        }
+        .report-content p {
+          margin-bottom: 0.75rem;
+        }
+        .report-content table {
+          width: 100%;
+          border-collapse: collapse;
+          margin: 1rem 0;
+          font-size: 13px;
+        }
+        .report-content th {
+          background: #7c3aed;
+          color: white;
+          padding: 8px 12px;
+          text-align: center;
+        }
+        .report-content td {
+          padding: 8px 12px;
+          border: 1px solid #e5e7eb;
+          text-align: center;
+        }
+        .report-content blockquote {
+          border-left: 4px solid #9333ea;
+          padding-left: 1rem;
+          margin: 1rem 0;
+          font-style: italic;
+          color: #666;
+        }
+        .spinner {
+          border: 3px solid rgba(147, 51, 234, 0.3);
+          border-top-color: #9333ea;
+          border-radius: 50%;
+          width: 48px;
+          height: 48px;
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
+    </div>
+  )
+}
+
+export default function ReportPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-purple-500 via-indigo-500 to-orange-400 flex items-center justify-center">
+        <div className="bg-white/90 rounded-3xl p-8 shadow-2xl">
+          <p className="text-lg">加载中...</p>
+        </div>
+      </div>
+    }>
+      <ReportContent />
+    </Suspense>
+  )
+}
+
+// 简单Markdown渲染
+function renderMarkdown(text: string): string {
+  if (!text) return ''
+
+  let html = text
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^> (.+)$/gm, '<blockquote>$1</blockquote>')
+    .replace(/^- (.+)$/gm, '<li>$1</li>')
+    .replace(/^---$/gm, '<hr />')
+    .replace(/\n\n/g, '</p><p>')
+    .replace(/\|(.+)\|/g, (match) => {
+      const cells = match.split('|').filter(c => c.trim())
+      if (cells.some(c => c.includes('---'))) return ''
+      const isHeader = cells.some(c => c.includes('**') || c.match(/参数|值|说明|数字/))
+      const tag = isHeader ? 'th' : 'td'
+      return `<tr>${cells.map(c => `<${tag}>${c.trim()}</${tag}>`).join('')}</tr>`
+    })
+
+  html = html.replace(/(<li>.*?<\/li>)+/g, '<ul>$&</ul>')
+  html = html.replace(/(<tr>.*?<\/tr>)+/g, '<table>$&</table>')
+  html = `<p>${html}</p>`
+
+  return html
+}
