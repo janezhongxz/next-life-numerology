@@ -17,7 +17,6 @@ function ReportContent() {
   const [reportContent, setReportContent] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [loadingText, setLoadingText] = useState('正在加载数据...')
-  const [showSettings, setShowSettings] = useState(false)
   const [apiKey, setApiKey] = useState('')
   const [selectedProvider, setSelectedProvider] = useState('deepseek')
 
@@ -70,7 +69,7 @@ function ReportContent() {
 
         if (!key || key === 'sk-570adfb7923a4248b65fcafa9a26d520') {
           // 使用默认 DeepSeek API
-          setLoadingText('正在生成详细报告（使用 DeepSeek AI）...')
+          setLoadingText('正在生成详细报告...')
           const response = await fetch('https://api.deepseek.com/chat/completions', {
             method: 'POST',
             headers: {
@@ -226,13 +225,6 @@ ageGroup === '天命整合' ? '从"为生存而战"转向"为使命而活"的关
 *（演示模式 - 配置API Key可生成完整报告）*`
   }
 
-  const handleSaveSettings = () => {
-    localStorage.setItem('api_key', apiKey)
-    localStorage.setItem('api_provider', selectedProvider)
-    setShowSettings(false)
-    window.location.reload()
-  }
-
   const handlePrint = () => {
     window.print()
   }
@@ -252,13 +244,7 @@ ageGroup === '天命整合' ? '从"为生存而战"转向"为使命而活"的关
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-500 via-indigo-500 to-orange-400">
       {/* 工具栏 */}
-      <div className="no-print fixed top-4 right-4 flex gap-2 z-50">
-        <button
-          onClick={() => setShowSettings(true)}
-          className="bg-white text-purple-600 px-4 py-2 rounded-lg shadow-lg hover:bg-purple-50 transition font-medium"
-        >
-          ⚙️ 设置
-        </button>
+      <div className="no-print fixed top-4 right-4 z-50">
         <button
           onClick={handlePrint}
           className="bg-white text-purple-600 px-4 py-2 rounded-lg shadow-lg hover:bg-purple-50 transition font-medium"
@@ -266,59 +252,6 @@ ageGroup === '天命整合' ? '从"为生存而战"转向"为使命而活"的关
           📄 下载PDF
         </button>
       </div>
-
-      {/* 设置弹窗 */}
-      {showSettings && (
-        <div className="no-print fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl p-6 max-w-md w-full mx-4 shadow-2xl">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">API 设置</h2>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">API Key</label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                  placeholder="sk-..."
-                  className="w-full px-4 py-2 border rounded-lg"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">API供应商</label>
-                <select
-                  value={selectedProvider}
-                  onChange={(e) => setSelectedProvider(e.target.value)}
-                  className="w-full px-4 py-2 border rounded-lg"
-                >
-                  <option value="deepseek">DeepSeek</option>
-                  <option value="openai">OpenAI</option>
-                </select>
-              </div>
-
-              <div className="bg-yellow-50 p-3 rounded-lg text-sm text-yellow-700">
-                ⚠️ 演示模式：未配置API Key时会生成示例报告
-              </div>
-            </div>
-
-            <div className="flex gap-2 mt-6">
-              <button
-                onClick={handleSaveSettings}
-                className="flex-1 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
-              >
-                保存并重新生成
-              </button>
-              <button
-                onClick={() => setShowSettings(false)}
-                className="px-4 py-2 border rounded-lg hover:bg-gray-50"
-              >
-                取消
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 报告主体 */}
       <div className="max-w-3xl mx-auto px-4 py-8 pt-16">

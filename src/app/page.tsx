@@ -50,7 +50,7 @@ export default function HomePage() {
   const [lang, setLang] = useState<Lang>('zh')
   const [name, setName] = useState('')
   const [birthDate, setBirthDate] = useState('')
-  const [queryYear, setQueryYear] = useState('')
+  const [queryYear, setQueryYear] = useState(new Date().getFullYear().toString())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -140,10 +140,11 @@ export default function HomePage() {
               <input
                 type="text"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => setName(e.target.value.toUpperCase())}
                 placeholder={t.namePlaceholder}
-                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition uppercase"
                 autoComplete="off"
+                style={{ textTransform: 'uppercase' }}
               />
             </div>
 
