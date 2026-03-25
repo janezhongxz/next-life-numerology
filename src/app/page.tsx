@@ -4,31 +4,73 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { calculate, CalculatorResult } from '@/lib/calculator'
 
-// 姓名正则：中文/英文/拼音，可有.
-const NAME_REGEX = /^[\u4e00-\u9fa5a-zA-Z.\s]+$/
+const I18N = {
+  zh: {
+    title: '生命数字计算器',
+    subtitle: 'Life Numerology Calculator',
+    nameLabel: '姓名（中文/英文/拼音）',
+    namePlaceholder: '请输入您的姓名',
+    birthLabel: '出生日期',
+    yearLabel: '查询年份（流年）',
+    yearPlaceholder: '留空则不计算流年',
+    calculate: '立即计算',
+    calculating: '计算中...',
+    footer: 'Life Numerology',
+    footerSub: 'lifenumerology.shop',
+    errorName: '请输入姓名',
+    errorInvalidName: '姓名只支持中文、英文、拼音和点号（.）',
+    errorDate: '请选择出生日期',
+    errorCalc: '计算出错，请重试',
+    langSwitch: 'EN / 中文',
+  },
+  en: {
+    title: 'Life Numerology Calculator',
+    subtitle: 'Numerology Report',
+    nameLabel: 'Name（Chinese/English/Pinyin）',
+    namePlaceholder: 'Enter your name',
+    birthLabel: 'Birth Date',
+    yearLabel: 'Query Year（Personal Year）',
+    yearPlaceholder: 'Leave empty to skip',
+    calculate: 'Calculate',
+    calculating: 'Calculating...',
+    footer: 'Life Numerology',
+    footerSub: 'lifenumerology.shop',
+    errorName: 'Please enter your name',
+    errorInvalidName: 'Name only supports Chinese, English, Pinyin and dots',
+    errorDate: 'Please select a valid date',
+    errorCalc: 'Calculation error, please try again',
+    langSwitch: '中文 / EN',
+  }
+}
+
+type Lang = keyof typeof I18N
 
 export default function HomePage() {
   const router = useRouter()
+  const [lang, setLang] = useState<Lang>('zh')
   const [name, setName] = useState('')
   const [birthDate, setBirthDate] = useState('')
   const [queryYear, setQueryYear] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  const t = I18N[lang]
+  const NAME_REGEX = /^[\u4e00-\u9fa5a-zA-Z.\s]+$/
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
 
     if (!name.trim()) {
-      setError('请输入姓名')
+      setError(t.errorName)
       return
     }
     if (!NAME_REGEX.test(name.trim())) {
-      setError('姓名只支持中文、英文、拼音和点号（.）')
+      setError(t.errorInvalidName)
       return
     }
     if (!birthDate) {
-      setError('请选择出生日期')
+      setError(t.errorDate)
       return
     }
 
@@ -40,7 +82,6 @@ export default function HomePage() {
         queryYear ? parseInt(queryYear, 10) : undefined
       )
 
-      // 计算年龄
       const birth = new Date(birthDate)
       const today = new Date()
       let age = today.getFullYear() - birth.getFullYear()
@@ -49,30 +90,40 @@ export default function HomePage() {
         age--
       }
 
-      // 通过URL参数传递数据到报告页
       const data = {
         ...result,
         birthDate,
         name: name.trim(),
-        age
+        age,
+        lang
       }
 
       router.push(`/report?data=${encodeURIComponent(JSON.stringify(data))}`)
     } catch (err) {
-      console.error('计算错误:', err)
-      setError('计算出错，请重试')
+      console.error('Calculation error:', err)
+      setError(t.errorCalc)
     } finally {
       setLoading(false)
     }
   }
 
+  const toggleLang = () => setLang(lang === 'zh' ? 'en' : 'zh')
+
   return (
-    <main className="min-h-screen bg-gradient-to-br from-purple-500 via-indigo-500 to-orange-400">
+    <main>
       {/* 顶部导航 */}
       <header className="sticky top-0 z-50 backdrop-blur-lg bg-white/80 border-b border-white/20">
-        <div className="max-w-lg mx-auto px-4 py-3">
-          <h1 className="font-display text-xl font-bold text-gray-900">生命数字计算器</h1>
-          <p className="text-gray-500 text-xs">Life Numerology Calculator</p>
+        <div className="max-w-lg mx-auto px-4 py-3 flex items-center justify-between">
+          <div>
+            <h1 className="font-display text-xl font-bold text-gray-900">{t.title}</h1>
+            <p className="text-gray-500 text-xs">{t.subtitle}</p>
+          </div>
+          <button
+            onClick={toggleLang}
+            className="glass px-4 py-2 rounded-full text-sm font-medium text-purple-600 hover:bg-white/50 transition"
+          >
+            {t.langSwitch}
+          </button>
         </div>
       </header>
 
@@ -84,13 +135,13 @@ export default function HomePage() {
             {/* 姓名 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                姓名（中文/英文/拼音）
+                {t.nameLabel}
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="请输入您的姓名"
+                placeholder={t.namePlaceholder}
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
                 autoComplete="off"
               />
@@ -99,7 +150,7 @@ export default function HomePage() {
             {/* 出生日期 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                出生日期
+                {t.birthLabel}
               </label>
               <input
                 type="date"
@@ -112,13 +163,13 @@ export default function HomePage() {
             {/* 流年年份 */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                查询年份（流年）
+                {t.yearLabel}
               </label>
               <input
                 type="number"
                 value={queryYear}
                 onChange={(e) => setQueryYear(e.target.value)}
-                placeholder="留空则不计算流年"
+                placeholder={t.yearPlaceholder}
                 min="1900"
                 max="2100"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
@@ -139,10 +190,10 @@ export default function HomePage() {
               {loading ? (
                 <>
                   <div className="spinner" />
-                  计算中...
+                  {t.calculating}
                 </>
               ) : (
-                '立即计算'
+                t.calculate
               )}
             </button>
           </form>
@@ -150,8 +201,8 @@ export default function HomePage() {
 
         {/* 底部说明 */}
         <div className="mt-6 text-center text-white/80 text-xs">
-          <p>Life Numerology</p>
-          <p className="mt-1 opacity-70">lifenumerology.shop</p>
+          <p>{t.footer}</p>
+          <p className="mt-1 opacity-70">{t.footerSub}</p>
         </div>
       </main>
 
@@ -166,6 +217,10 @@ export default function HomePage() {
         }
         @keyframes spin {
           to { transform: rotate(360deg); }
+        }
+        .glass {
+          background: rgba(255, 255, 255, 0.6);
+          backdrop-filter: blur(8px);
         }
       `}</style>
     </main>
