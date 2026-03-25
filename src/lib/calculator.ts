@@ -206,7 +206,7 @@ export function calculate(
 
   // ============ dominantNumber ============
   const entries = Object.entries(birthGridCounts)
-  const dominant = entries.reduce((a, b) => parseInt(b[1]) > parseInt(a[1]) ? b : a)
+  const dominant = entries.reduce((a, b) => b[1] > a[1] ? b : a)
   const dominantNumber = parseInt(dominant[0])
 
   return {
