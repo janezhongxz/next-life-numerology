@@ -22,6 +22,8 @@ const I18N = {
     errorDate: '请选择出生日期',
     errorCalc: '计算出错，请重试',
     langSwitch: 'EN / 中文',
+    questionLabel: '问题困惑（选填）',
+    questionPlaceholder: '请描述您目前遇到的问题或困惑（选填，限500字）',
   },
   en: {
     title: 'Life Numerology Calculator',
@@ -40,6 +42,8 @@ const I18N = {
     errorDate: 'Please select a valid date',
     errorCalc: 'Calculation error, please try again',
     langSwitch: '中文 / EN',
+    questionLabel: 'Questions / Concerns (Optional)',
+    questionPlaceholder: 'Describe your questions or concerns (optional, max 500 chars)',
   }
 }
 
@@ -51,6 +55,7 @@ export default function HomePage() {
   const [name, setName] = useState('')
   const [birthDate, setBirthDate] = useState('')
   const [queryYear, setQueryYear] = useState(new Date().getFullYear().toString())
+  const [question, setQuestion] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -95,7 +100,8 @@ export default function HomePage() {
         birthDate,
         name: name.trim(),
         age,
-        lang
+        lang,
+        question: question.trim()
       }
 
       router.push(`/report?data=${encodeURIComponent(JSON.stringify(data))}`)
@@ -175,6 +181,21 @@ export default function HomePage() {
                 max="2100"
                 className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition"
               />
+            </div>
+
+            {/* 问题困惑 */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {lang === 'zh' ? '问题困惑（选填）' : 'Questions / Concerns (Optional)'}
+              </label>
+              <textarea
+                value={question}
+                onChange={(e) => setQuestion(e.target.value.slice(0, 500))}
+                placeholder={lang === 'zh' ? '请描述您目前遇到的问题或困惑（选填，限500字）' : 'Describe your current questions or concerns (optional, max 500 chars)'}
+                rows={3}
+                className="w-full px-4 py-3 rounded-xl border border-gray-200 bg-white text-gray-900 focus:ring-2 focus:ring-purple-500 focus:border-transparent transition resize-none"
+              />
+              <p className="text-xs text-gray-400 mt-1 text-right">{question.length}/500</p>
             </div>
 
             {/* 错误提示 */}

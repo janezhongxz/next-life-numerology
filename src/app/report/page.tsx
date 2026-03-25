@@ -9,6 +9,7 @@ interface ReportData extends CalculatorResult {
   birthDate: string
   name: string
   age: number
+  question?: string
 }
 
 function ReportContent() {
@@ -60,6 +61,7 @@ function ReportContent() {
           missingNumbers: reportData.missingNumbersBirth,
           dominantNumber: reportData.dominantNumber,
           age: reportData.age,
+          question: reportData.question,
           lang: 'zh'
         })
 

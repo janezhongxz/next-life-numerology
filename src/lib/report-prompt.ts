@@ -12,6 +12,7 @@ export interface ReportVariables {
   missingNumbers: number[]
   dominantNumber: number
   age: number
+  question?: string
   lang?: 'zh' | 'en'
 }
 
@@ -42,7 +43,7 @@ export function getYearTheme(personalYear: number) {
 }
 
 export function buildReportPrompt(vars: ReportVariables): string {
-  const { birthDate, lifePath, attitude, birthDay, personalYear, birthGridCounts, missingNumbers, dominantNumber, age, lang = 'zh' } = vars
+  const { birthDate, lifePath, attitude, birthDay, personalYear, birthGridCounts, missingNumbers, dominantNumber, age, question, lang = 'zh' } = vars
   const ageGroup = getAgeGroup(age)
   const isZh = lang === 'zh'
   const missingStr = missingNumbers.length > 0 ? missingNumbers.join('、') : '无'
@@ -64,6 +65,7 @@ export function buildReportPrompt(vars: ReportVariables): string {
 - 缺失数：${missingStr}
 - 用户年龄：${age}岁
 - 年龄档：${ageGroup}
+- 用户问题困惑：${question || '未提供'}
 
 【输出语言】${isZh ? '简体中文' : 'English'}
 
