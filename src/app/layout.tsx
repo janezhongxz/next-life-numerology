@@ -18,7 +18,7 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" />
       </head>
-      <body className="min-h-screen bg-gradient-to-br from-purple-500 via-indigo-500 to-orange-400">
+      <body className="min-h-screen">
         {children}
       </body>
     </html>
