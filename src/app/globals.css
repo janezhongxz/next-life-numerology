@@ -4,7 +4,8 @@
 
 @layer base {
   body {
-    @apply bg-gradient-to-br from-purple-500 via-indigo-500 to-orange-400 min-h-screen;
+    background: url('/bg-hero.jpg') center center / cover no-repeat fixed;
+    min-height: 100vh;
   }
 }
 
