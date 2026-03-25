@@ -4,6 +4,7 @@
 
 export interface ReportVariables {
   birthDate: string
+  name: string
   lifePath: number
   attitude: number
   birthDay: number
@@ -43,19 +44,23 @@ export function getYearTheme(personalYear: number) {
 }
 
 export function buildReportPrompt(vars: ReportVariables): string {
-  const { birthDate, lifePath, attitude, birthDay, personalYear, birthGridCounts, missingNumbers, dominantNumber, age, question, lang = 'zh' } = vars
+  const { birthDate, name, lifePath, attitude, birthDay, personalYear, birthGridCounts, missingNumbers, dominantNumber, age, question, lang = 'zh' } = vars
   const ageGroup = getAgeGroup(age)
   const isZh = lang === 'zh'
   const missingStr = missingNumbers.length > 0 ? missingNumbers.join('、') : '无'
   const yearTheme = personalYear ? getYearTheme(personalYear) : getYearTheme(1)
   const today = new Date()
   const dateStr = `${today.getFullYear()}/${today.getMonth() + 1}/${today.getDate()}`
+  // 格式化出生日期为"1981年10月26日"
+  const birthParts = birthDate.split('-')
+  const birthDateFormatted = `${birthParts[0]}年${parseInt(birthParts[1])}月${parseInt(birthParts[2])}日`
 
   return `【角色设定】
 你是一位专业生命数字解读师，擅长毕达哥拉斯生命数字体系，拥有25年咨询经验。你的解读风格：犀利精准、有温度、接地气，既专业又让人听得懂。
 
 【输入变量】
-- 出生日期：${birthDate}
+- 姓名：${name}
+- 出生日期：${birthDateFormatted}（公历）
 - 生命路径数（主命数）：${lifePath}
 - 态度数：${attitude}
 - 生日数：${birthDay}
@@ -63,8 +68,7 @@ export function buildReportPrompt(vars: ReportVariables): string {
 - 天赋九宫格各数字出现次数：1出现${birthGridCounts[1]}次、2出现${birthGridCounts[2]}次、3出现${birthGridCounts[3]}次、4出现${birthGridCounts[4]}次、5出现${birthGridCounts[5]}次、6出现${birthGridCounts[6]}次、7出现${birthGridCounts[7]}次、8出现${birthGridCounts[8]}次、9出现${birthGridCounts[9]}次
 - 最强数字：${dominantNumber}
 - 缺失数：${missingStr}
-- 用户年龄：${age}岁
-- 年龄档：${ageGroup}
+- 用户年龄：${age}岁（${ageGroup}）
 - 用户问题困惑：${question || '未提供'}
 
 【输出语言】${isZh ? '简体中文' : 'English'}
@@ -80,7 +84,27 @@ export function buildReportPrompt(vars: ReportVariables): string {
 
 【输出模板】
 
-🌟 生命数字战略蓝图
+🌟 生命数字战略蓝图：${name} | ${ageGroup}的${yearTheme.type}
+
+基本情况：
+
+  姓名：${name}
+  出生年月日：${birthDateFormatted}（公历）
+  ${question && question.trim() ? `当前困惑/目标：
+${question.trim()}` : ''}
+
+---
+
+📜 总纲
+
+你是 ${lifePath}号主命（LifePath=${lifePath}），用 **${birthDay}号生日结果导向（BirthDay=${birthDay}）** 做系统落地，用 **${attitude}号洞察与价值导向（Attitude=${attitude}）** 建立理解深度；但你当前的"动力来自业务不够"的根因是 **黑洞缺失数 ${missingStr}**。
+
+${missingStr.includes('3') ? '· 3：表达没有补成"可行动/可回应"的业务结构' : ''}
+${missingStr.includes('4') ? '· 4：执行没有补成"稳定运行的节律系统"' : ''}
+
+${personalYear}（PersonalYear=${personalYear}）会把机会推向：用你姓名里的天赋数字把洞察变成可行动表达、用快速试验迭代验证，再用最低运行线把你从断档里拉出来。
+
+---
 
 ★ 核心数字速览 ★
 
@@ -89,23 +113,11 @@ export function buildReportPrompt(vars: ReportVariables): string {
 
 ---
 
-📜 总纲：一句话判词
-
-你的人生主轨是 ${lifePath}，你的触发方式是 ${attitude}，而今年（${personalYear || '?'} 流年）逼你把 ${missingNumbers.length > 0 ? missingNumbers[0] : '你的核心课题'} 从"缺口"做成"能力"。
-
-${question && question.trim() ? `
-
-你提问的问题：
-${question.trim()}
-` : ''}
-
----
-
 核心参数一览
 
   生命路径数   ${lifePath}   你的人生主轨：开创、独立、自我实现
   态度数       ${attitude}   你如何被触发：大爱、理想、易被不公激惹
-  生日数       ${birthDay}   你的行动默认模式：${birthDay === 8 ? '结果导向、权力、资源整合' : birthDay === 1 ? '独立思考后行动' : '协作与平衡'}
+  生日数       ${birthDay}   你的行动默认模式：${birthDay === 8 ? '结果导向、权力、资源整合' : birthDay === 1 ? '独立思考后行动' : birthDay === 2 ? '协作与感受' : birthDay === 3 ? '创意表达' : birthDay === 4 ? '稳定构建' : birthDay === 5 ? '自由探索' : birthDay === 6 ? '责任担当' : birthDay === 7 ? '深度分析' : '理想愿景'}
   流年         ${personalYear || '未提供'}   今年的核心课题：${yearTheme.type}
 
 缺失数   ${missingStr}
@@ -122,7 +134,7 @@ ${lifePath}号主轨意味着你天生倾向于用【开创、独立和自我证
 你最容易赢在：人生的起点、项目的开端、任何需要"从0到1"的突破性时刻。
 你最需要警惕：因过度强调自我而导致的孤立、因不愿示弱而独自硬扛、因总想当"第一"而陷入无谓的竞争。
 
-你的天赋九宫格中，数字${dominantNumber}出现了${Math.max(...Object.values(birthGridCounts))}次，这是你能量最强的核心引擎。这意味着你的"独立意志"和"开创力"是你的超级天赋，但同时也可能成为你的惯性陷阱。
+你的天赋九宫格中，数字${dominantNumber}出现了${Math.max(...Object.values(birthGridCounts))}次，这是你能量最强的核心引擎。
 
 1.2 天赋九宫格
 
