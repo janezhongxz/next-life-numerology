@@ -334,6 +334,17 @@ ageGroup === '天命整合' ? '从"为生存而战"转向"为使命而活"的关
 
 当你真正理解了这个课题，你会发现：所有的缺失，都是伪装的礼物。
 
+${isEn ? `---
+
+Disclaimer:
+This report is a tool for self-exploration and personal growth based on numerology and AI modeling. While it provides insights into your potential, it does not constitute professional medical, legal, or financial advice. All decisions and actions taken based on this report are at the user's sole discretion and responsibility. We believe that you are the ultimate creator of your destiny; the numbers are simply a guide.` : `---
+
+免责声明 (Disclaimer)：
+性质说明： 本报告由 AI 根据生命数字算法生成，主要用于个人成长参考及心理疏导，具有一定的娱乐和探索性质。
+非专业建议： 报告内容不代表任何法律、医学、金融或心理治疗的专业意见。如遇心理困扰或重大决策，请咨询持证专业人士。
+执行风险： 报告中的行动建议（如"建立个人品牌"、"管理流程"等）属于启发式引导，用户基于此做出的任何行为及后果，由用户本人承担，开发者不承担法律责任。
+内容解释权： 解读具有主观性，不同背景下的解读可能存在差异，最终解释权归 Life Numerology 所有。`}
+
 ---
 
 报告生成：Life Numerology | lifenumerology.shop

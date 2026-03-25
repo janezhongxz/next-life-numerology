@@ -4396,7 +4396,7 @@
       "format": "cjs"
     },
     ".open-next/server-functions/default/.next/server/chunks/ssr/src_app_report_page_tsx_0m60jvy._.js": {
-      "bytes": 24533,
+      "bytes": 26809,
       "imports": [],
       "format": "cjs"
     },
@@ -7183,7 +7183,7 @@
           "bytesInOutput": 263
         },
         ".open-next/server-functions/default/.next/server/chunks/ssr/src_app_report_page_tsx_0m60jvy._.js": {
-          "bytesInOutput": 36303
+          "bytesInOutput": 39853
         },
         ".open-next/server-functions/default/.next/server/chunks/ssr/[turbopack]_runtime.js": {
           "bytesInOutput": 20536
@@ -7351,7 +7351,7 @@
           "bytesInOutput": 58412
         }
       },
-      "bytes": 2424478
+      "bytes": 2428028
     }
   }
 }
