@@ -4,7 +4,7 @@
 export const GOOGLE_CONFIG = {
   clientId     : process.env.GOOGLE_CLIENT_ID!,
   clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-  redirectUri : `${process.env.NEXTAUTH_URL}/api/auth/callback/google`,
+  redirectUri : `https://lifenumerology.shop/api/auth/callback/google`,
 }
 
 // Step 1: Generate Google OAuth URL
