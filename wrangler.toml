@@ -6,3 +6,8 @@ compatibility_flags = ["nodejs_compat"]
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "life-numerology-db"
+database_id = "6ef773d5-b683-48dc-953b-325d76bc4efa"
