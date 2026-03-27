@@ -100,11 +100,9 @@ export const db = {
   },
 
   async createUser(user: schema.InsertUser): Promise<schema.User> {
-    // Check if google_id already exists (handles UNIQUE conflict)
+    // Check if google_id already exists first
     const existing = await this.getUserByGoogleId(user.googleId)
     if (existing) {
-      // google_id already in DB (possibly from a previous failed attempt).
-      // Update name/image if changed, return existing user.
       if (existing.name !== (user.name ?? null) || existing.image !== (user.image ?? null)) {
         await d1Query(
           `UPDATE users SET name = ${esc(user.name ?? null)}, image = ${esc(user.image ?? null)} WHERE id = ${esc(existing.id)}`
@@ -118,7 +116,8 @@ export const db = {
       `INSERT INTO users (id, google_id, name, email, image) VALUES (${esc(user.id)}, ${esc(user.googleId)}, ${esc(user.name ?? null)}, ${esc(user.email ?? null)}, ${esc(user.image ?? null)})`
     )
 
-    // Return object directly (D1 eventual consistency: INSERT succeeded but may not read back yet)
+    // Return object directly - D1 eventual consistency means INSERT succeeded
+    // but subsequent SELECT may not see it yet
     return {
       id           : user.id,
       name         : user.name ?? null,
@@ -173,8 +172,10 @@ export const db = {
   },
 
   async createSession(sessionToken: string, userId: string, expiresAt: Date): Promise<void> {
+    // INSERT OR IGNORE: if userId not yet visible due to D1 eventual consistency,
+    // or if session_token already exists, skip silently instead of failing
     await d1Query(
-      `INSERT INTO sessions (id, session_token, user_id, expires) VALUES (${esc(sessionToken)}, ${esc(sessionToken)}, ${esc(userId)}, ${Math.floor(expiresAt.getTime() / 1000)})`
+      `INSERT OR IGNORE INTO sessions (id, session_token, user_id, expires) VALUES (${esc(sessionToken)}, ${esc(sessionToken)}, ${esc(userId)}, ${Math.floor(expiresAt.getTime() / 1000)})`
     )
   },
 
