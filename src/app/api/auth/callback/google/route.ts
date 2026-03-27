@@ -8,6 +8,7 @@ export async function GET(req: Request): Promise<Response> {
   const error = url.searchParams.get('error')
 
   if (error) {
+    console.error('OAuth error from Google:', error)
     return new Response(null, {
       status : 302,
       headers: { Location: `/?error=${encodeURIComponent(error)}` },
@@ -27,11 +28,17 @@ export async function GET(req: Request): Promise<Response> {
   )
   const savedState = cookies['oauth_state']
   if (state && savedState && state !== savedState) {
-    return new Response('Invalid state', { status: 400 })
+    console.error('OAuth state mismatch')
+    return new Response(null, {
+      status : 302,
+      headers: { Location: '/?error=state_mismatch' },
+    })
   }
 
   try {
+    console.error('OAuth callback: starting handleGoogleCallback, code prefix:', code.substring(0, 10))
     const { token } = await handleGoogleCallback(code)
+    console.error('OAuth callback: success, token created')
 
     const response = new Response(null, {
       status : 302,
@@ -41,9 +48,10 @@ export async function GET(req: Request): Promise<Response> {
     return setSessionCookie(response, token)
   } catch (e) {
     console.error('OAuth callback error:', e)
+    const msg = e instanceof Error ? e.message : String(e)
     return new Response(null, {
       status : 302,
-      headers: { Location: '/?error=auth_failed' },
+      headers: { Location: `/?error=auth_failed&detail=${encodeURIComponent(msg.slice(0, 100))}` },
     })
   }
 }
