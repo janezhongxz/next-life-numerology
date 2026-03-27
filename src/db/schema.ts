@@ -1,5 +1,38 @@
 import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
 
+// Plain TypeScript interfaces for D1 REST API (snake_case responses)
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface User extends schemaUsers {}
+// eslint-disable-next-line @typescript-eslint/no-empty-interface
+export interface Calculation extends schemaCalculations {}
+
+interface schemaUsers {
+  id: string
+  name: string | null
+  email: string | null
+  emailVerified: Date | null
+  image: string | null
+  googleId: string | null
+  createdAt: Date
+  updatedAt: Date
+  freeCreditsUsed: number
+}
+
+interface schemaCalculations {
+  id: string
+  userId: string
+  birthdate: string
+  name: string
+  lifeNumber: number
+  lang: string
+  reportText: string | null
+  createdAt: Date
+  fingerprint: string | null
+  isPaid: number
+  question: string | null
+  queryYear: number | null
+}
+
 // NextAuth required tables
 export const users = sqliteTable('users', {
   id               : text('id').primaryKey(),

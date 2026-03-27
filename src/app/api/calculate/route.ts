@@ -1,138 +1,114 @@
-// POST /api/calculate
-// Core business logic: fingerprint check, free credits, paid判定
+// POST /api/calculate - Core business logic: fingerprint check, free credits, paid判定
 import { NextResponse } from 'next/server'
-import { getDb } from '@/db'
-import { calculations, users } from '@/db/schema'
-import { eq, and } from 'drizzle-orm'
+import { db } from '@/db'
 import { validateSession } from '@/lib/auth'
 import { calculate, CalculatorResult } from '@/lib/calculator'
 import { createHash } from 'crypto'
 
 export async function POST(req: Request): Promise<Response> {
-  // 1. Auth check
-  const { userId } = await validateSession(req)
-  if (!userId) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  try {
+    // 1. Auth check
+    const { userId } = await validateSession(req)
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
 
-  // 2. Parse body
-  const { birthDate, name, queryYear, question } = await req.json()
-  if (!birthDate || !name) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
-  }
+    // 2. Parse body
+    const { birthDate, name, queryYear, question } = await req.json()
+    if (!birthDate || !name) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+    }
 
-  // 3. Generate fingerprint: SHA256(name + birthDate + queryYear + question)
-  const fingerprint = createHash('sha256')
-    .update(`${name}|${birthDate}|${queryYear ?? ''}|${question ?? ''}`)
-    .digest('hex')
+    // 3. Generate fingerprint
+    const fingerprint = createHash('sha256')
+      .update(`${name}|${birthDate}|${queryYear ?? ''}|${question ?? ''}`)
+      .digest('hex')
 
-  const db = getDb()
+    // 4. Check fingerprint → existing report
+    const existing = await db.getCalculationByFingerprint(fingerprint, userId)
 
-  // 4. Check fingerprint in DB → existing report?
-  const existing = await db
-    .select()
-    .from(calculations)
-    .where(and(
-      eq(calculations.fingerprint, fingerprint),
-      eq(calculations.userId, userId)
-    ))
-    .get()
+    // Get user
+    const user = await db.getUserById(userId)
+    const creditsUsed = user?.freeCreditsUsed ?? 0
 
-  // Get user credits
-  const user = await db.select().from(users).where(eq(users.id, userId)).get()
-  const creditsUsed = user?.freeCreditsUsed ?? 0
-
-  if (existing) {
-    if (existing.isPaid) {
-      // Already paid - return existing report
+    if (existing) {
+      if (existing.isPaid) {
+        return NextResponse.json({
+          type: 'existing_paid',
+          id: existing.id,
+          reportText: existing.reportText,
+          message: '历史已付费报告',
+        })
+      }
+      if (creditsUsed >= 1) {
+        return NextResponse.json({
+          type: 'unpaid_no_credits',
+          id: existing.id,
+          fingerprint,
+          message: '此配置需要付费',
+        })
+      }
+      // Has credits, recalculate
+      const result = calculate(birthDate, name, queryYear)
+      const reportText = await generateReport(result, name, question)
+      await db.updateCalculation(existing.id, { reportText })
+      await db.incrementUserCredits(userId)
       return NextResponse.json({
-        type: 'existing_paid',
+        type: 'new_with_credit',
         id: existing.id,
-        reportText: existing.reportText,
-        message: '历史已付费报告'
+        reportText,
+        result,
+        creditsRemaining: 0,
       })
     }
-    // Fingerprint hit but not paid AND no credits left
+
+    // 5. New calculation - check credits
     if (creditsUsed >= 1) {
       return NextResponse.json({
-        type: 'unpaid_no_credits',
-        id: existing.id,
+        type: 'no_credits',
         fingerprint,
-        message: '此配置需要付费'
+        message: '免费次数已用尽，需要付费',
       })
     }
-    // Fingerprint hit, not paid, but has credits → use credit
+
+    // 6. Perform free calculation
     const result = calculate(birthDate, name, queryYear)
     const reportText = await generateReport(result, name, question)
 
-    await db
-      .update(calculations)
-      .set({ reportText })
-      .where(eq(calculations.id, existing.id))
+    const id = crypto.randomUUID()
+    await db.createCalculation({
+      id,
+      userId,
+      birthdate: birthDate,
+      name: name.trim(),
+      lifeNumber: result.lifePath,
+      lang: 'zh',
+      reportText,
+      fingerprint,
+      isPaid: 0,
+      question: question ?? null,
+      queryYear: queryYear ?? null,
+    })
 
-    await db
-      .update(users)
-      .set({ freeCreditsUsed: creditsUsed + 1 })
-      .where(eq(users.id, userId))
+    await db.incrementUserCredits(userId)
 
     return NextResponse.json({
-      type: 'new_with_credit',
-      id: existing.id,
+      type: 'new',
+      id,
       reportText,
       result,
-      creditsRemaining: 0
+      creditsRemaining: 0,
     })
+  } catch (err) {
+    console.error('[/api/calculate]', err)
+    return NextResponse.json({ error: String(err) }, { status: 500 })
   }
-
-  // 5. New calculation - check credits
-  if (creditsUsed >= 1) {
-    return NextResponse.json({
-      type: 'no_credits',
-      fingerprint,
-      message: '免费次数已用尽，需要付费'
-    })
-  }
-
-  // 6. Perform free calculation
-  const result = calculate(birthDate, name, queryYear)
-  const reportText = await generateReport(result, name, question)
-
-  // Save to DB
-  const id = crypto.randomUUID()
-  await db.insert(calculations).values({
-    id,
-    userId,
-    birthdate: birthDate,
-    name: name.trim(),
-    lifeNumber: result.lifePath,
-    lang: 'zh',
-    reportText,
-    fingerprint,
-    isPaid: 0,
-    question: question ?? null,
-    queryYear: queryYear ?? null,
-  })
-
-  // Mark free credit as used
-  await db
-    .update(users)
-    .set({ freeCreditsUsed: creditsUsed + 1 })
-    .where(eq(users.id, userId))
-
-  return NextResponse.json({
-    type: 'new',
-    id,
-    reportText,
-    result,
-    creditsRemaining: 0
-  })
 }
 
 async function generateReport(result: CalculatorResult, name: string, question?: string): Promise<string> {
   const apiKey = process.env.DEEPSEEK_API_KEY
   if (!apiKey) throw new Error('DEEPSEEK_API_KEY not set')
 
-  // Build prompt from report-prompt logic
   const prompt = `生成一份详细的生命数字报告。
 姓名：${name}
 生命路径数：${result.lifePath}
@@ -152,12 +128,12 @@ ${question ? `用户问题：${question}` : ''}`
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`
+      'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }]
-    })
+      messages: [{ role: 'user', content: prompt }],
+    }),
   })
 
   const data = await res.json()
