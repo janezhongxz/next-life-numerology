@@ -64,8 +64,13 @@ export async function getGoogleUserInfo(accessToken: string): Promise<{
   })
 
   if (!res.ok) {
-    throw new Error(`Failed to get user info: ${res.status}`)
+    const text = await res.text().catch(() => '')
+    throw new Error(`Google userinfo failed: ${res.status} - ${text}`)
   }
 
-  return res.json()
+  const data = await res.json()
+  if (!data?.id) {
+    throw new Error(`Google userinfo missing id field: ${JSON.stringify(data)}`)
+  }
+  return data
 }

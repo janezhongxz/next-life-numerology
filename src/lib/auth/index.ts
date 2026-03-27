@@ -33,12 +33,18 @@ export async function handleGoogleCallback(code: string): Promise<{
   token: string
 }> {
   const tokens = await exchangeCodeForTokens(code)
+  if (!tokens?.access_token) {
+    throw new Error(`Token exchange returned no access_token: ${JSON.stringify(tokens)}`)
+  }
   const googleUser = await getGoogleUserInfo(tokens.access_token)
+  if (!googleUser?.id) {
+    throw new Error(`Google userinfo missing id: ${JSON.stringify(googleUser)}`)
+  }
   const user = await findOrCreateUser(
     googleUser.id,
-    googleUser.email,
-    googleUser.name,
-    googleUser.picture
+    googleUser.email ?? '',
+    googleUser.name ?? '',
+    googleUser.picture ?? '',
   )
   const token = await createSession(user.id)
   return { userId: user.id, token }
