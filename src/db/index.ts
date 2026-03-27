@@ -56,12 +56,12 @@ function rowToCalculation(row: Record<string, unknown>): schema.Calculation {
 export const db = {
   async getUserByGoogleId(googleId: string): Promise<schema.User | undefined> {
     const rows = await d1Query<Record<string, unknown>>('SELECT * FROM users WHERE google_id = ? LIMIT 1', [googleId])
-    return rows[0] as schema.User | undefined
+    return rows[0] as unknown as schema.User | undefined
   },
 
   async getUserById(id: string): Promise<schema.User | undefined> {
     const rows = await d1Query<Record<string, unknown>>('SELECT * FROM users WHERE id = ? LIMIT 1', [id])
-    return rows[0] as schema.User | undefined
+    return rows[0] as unknown as schema.User | undefined
   },
 
   async createUser(user: schema.InsertUser): Promise<schema.User> {
