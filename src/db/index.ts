@@ -120,4 +120,16 @@ export const db = {
   async incrementUserCredits(userId: string): Promise<void> {
     await d1Query('UPDATE users SET free_credits_used = free_credits_used + 1 WHERE id = ?', [userId])
   },
+
+  // Session management (for auth)
+  async createSession(sessionToken: string, userId: string, expiresAt: Date): Promise<void> {
+    await d1Query(
+      'INSERT INTO sessions (id, session_token, user_id, expires) VALUES (?, ?, ?, ?)',
+      [sessionToken, sessionToken, userId, Math.floor(expiresAt.getTime() / 1000)]
+    )
+  },
+
+  async deleteSession(sessionToken: string): Promise<void> {
+    await d1Query('DELETE FROM sessions WHERE session_token = ?', [sessionToken])
+  },
 }

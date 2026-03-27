@@ -1,9 +1,8 @@
 // JWT utilities using Web Crypto API (available in edge runtime)
 // HMAC-SHA256 signing - compatible with Cloudflare Workers
+// Session storage uses D1 REST API
 
-import { getDb } from '@/db'
-import { sessions, users } from '@/db/schema'
-import { eq } from 'drizzle-orm'
+import { db } from '@/db'
 
 const JWT_SECRET = (process.env.JWT_SECRET ?? '').trim() || 'fallback-secret-change-in-production'
 const SESSION_DURATION_DAYS = 30
@@ -70,18 +69,12 @@ async function verifyJwt(token: string, secret: string): Promise<object | null> 
   }
 }
 
-// Create session - stores JWT in D1 sessions table
+// Create session - stores JWT in D1 sessions table via REST API
 export async function createSession(userId: string): Promise<string> {
-  const db = getDb()
   const expiresAt = new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000)
   const sessionToken = crypto.randomUUID()
 
-  await db.insert(sessions).values({
-    id           : sessionToken,
-    sessionToken : sessionToken,
-    userId       : userId,
-    expires      : expiresAt,
-  })
+  await db.createSession(sessionToken, userId, expiresAt)
 
   const jwtPayload = {
     sub: userId,
@@ -130,8 +123,7 @@ export async function validateSession(req: Request): Promise<{
 
 // Delete session (logout)
 export async function deleteSession(sessionToken: string): Promise<void> {
-  const db = getDb()
-  await db.delete(sessions).where(eq(sessions.sessionToken, sessionToken))
+  await db.deleteSession(sessionToken)
 }
 
 // Set session cookie on response
