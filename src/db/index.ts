@@ -24,7 +24,8 @@ async function d1Query<T = Record<string, unknown>>(sql: string, params: unknown
   })
   const data: D1Result = await res.json()
   if (!data.success || data.errors?.length) {
-    throw new Error(data.errors?.[0]?.message ?? 'D1 query failed')
+    const msg = data.errors?.[0]?.message ?? 'D1 query failed'
+    throw new Error(`D1 error: ${msg} | sql: ${sql.substring(0, 80)}`)
   }
   if (!data.results?.[0]) return []
   const { columns, rows } = data.results[0]

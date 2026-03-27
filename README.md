@@ -1,6 +1,6 @@
 # Life Numerology | 生命数字报告系统
 
-> Next.js + Tailwind CSS 版本
+> Powered by DeepSeek AI + Cloudflare D1 + Google OAuth
 
 ## 技术栈
 
