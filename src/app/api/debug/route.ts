@@ -1,11 +1,25 @@
-// Debug endpoint - check environment variables
-export async function GET() {
-  return Response.json({
-    GOOGLE_CLIENT_ID     : process.env.GOOGLE_CLIENT_ID ?? 'UNDEFINED',
-    GOOGLE_CLIENT_SECRET : process.env.GOOGLE_CLIENT_SECRET ?? 'UNDEFINED',
-    NEXTAUTH_URL         : process.env.NEXTAUTH_URL ?? 'UNDEFINED',
-    JWT_SECRET           : process.env.JWT_SECRET ? '***' : 'UNDEFINED',
-    NODE_ENV             : process.env.NODE_ENV ?? 'UNDEFINED',
-    NEXT_PUBLIC_NEXTAUTH_URL: process.env.NEXT_PUBLIC_NEXTAUTH_URL ?? 'UNDEFINED',
+// GET /api/debug - diagnostic endpoint
+import { NextResponse } from 'next/server'
+
+export async function GET(req: Request): Promise<Response> {
+  const cookieHeader = req.headers.get('cookie') ?? ''
+  const cookies = Object.fromEntries(
+    cookieHeader.split(';').map(c => {
+      const [k, ...v] = c.trim().split('=')
+      return [k, v.join('=')]
+    })
+  )
+
+  const token = cookies['session_token']
+  const oauthState = cookies['oauth_state']
+
+  return NextResponse.json({
+    hasSessionToken: !!token,
+    sessionTokenPrefix: token ? token.substring(0, 20) + '...' : null,
+    hasOauthState: !!oauthState,
+    allCookies: Object.keys(cookies),
+    env: {
+      NODE_ENV: process.env.NODE_ENV,
+    }
   })
 }
