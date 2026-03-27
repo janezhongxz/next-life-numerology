@@ -1,66 +1,67 @@
-// GET /api/debug - session validation diagnostic
+// GET /api/debug - minimal diagnostic
 import { NextResponse } from 'next/server'
-import { validateSession } from '@/lib/auth'
 
-const D1_API = 'https://api.cloudflare.com/client/v4/accounts/03bbff09eebb738294943ba14467fff9/d1/database/6ef773d5-b683-48dc-953b-325d76bc4efa/query'
-const D1_TOKEN = 'cfut_WZJF1BNh4QH74e2kO3ZwF7oiQ60YayrV68IBQJkTcfd5e1b4'
-const JWT_SECRET = (process.env.JWT_SECRET ?? '').trim() || 'fallback-secret-change-in-production'
+// Same decode logic as session.ts
+function base64UrlDecode(str: string): ArrayBuffer {
+  str = str.replace(/-/g, '+').replace(/_/g, '/')
+  while (str.length % 4) str += '='
+  const binary = atob(str)
+  const bytes = new Uint8Array(binary.length)
+  for (let i = 0; i < binary.length; i++) { bytes[i] = binary.charCodeAt(i) }
+  return bytes.buffer
+}
 
-// Minimal base64url decoder for debugging
-function decodeJwtPayload(token: string): object | null {
+function parseCookies(cookieHeader: string): Record<string, string> {
+  const result: Record<string, string> = {}
+  if (!cookieHeader) return result
+  cookieHeader.split(';').forEach(part => {
+    const trimmed = part.trim()
+    const eqIndex = trimmed.indexOf('=')
+    if (eqIndex > 0) {
+      result[trimmed.substring(0, eqIndex)] = trimmed.substring(eqIndex + 1)
+    }
+  })
+  return result
+}
+
+// Inline minimal verifyJwt for diagnosis
+async function verifyJwtTest(token: string, secret: string) {
   try {
-    const parts = token.split('.')
-    if (parts.length !== 3) return null
-    let payload = parts[1].replace(/-/g, '+').replace(/_/g, '/')
-    while (payload.length % 4) payload += '='
-    return JSON.parse(atob(payload))
-  } catch {
-    return null
+    const [headerB64, payloadB64, sigB64] = token.split('.')
+    if (!headerB64 || !payloadB64 || !sigB64) return { error: 'malformed token - missing parts' }
+    
+    const sigData = base64UrlDecode(sigB64)
+    const encoder = new TextEncoder()
+    const keyData = encoder.encode(secret)
+    const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify'])
+    const data = encoder.encode(`${headerB64}.${payloadB64}`)
+    const valid = await crypto.subtle.verify('HMAC', cryptoKey, sigData, data)
+    
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64)))
+    return { valid, payload }
+  } catch (e) {
+    return { error: String(e) }
   }
 }
 
+const JWT_SECRET = (process.env.JWT_SECRET ?? '').trim() || 'fallback-secret-change-in-production'
+
 export async function GET(req: Request): Promise<Response> {
   const cookieHeader = req.headers.get('cookie') ?? ''
-  const cookies = Object.fromEntries(
-    cookieHeader.split(';').map(c => {
-      const [k, ...v] = c.trim().split('=')
-      return [k, v.join('=')]
-    })
-  )
+  const cookies = parseCookies(cookieHeader)
   const token = cookies['session_token']
-
-  let validation = null
-  let validationError = null
-  let jwtPayload = null
-  try {
-    validation = await validateSession(req)
-  } catch (e) {
-    validationError = String(e)
-  }
-
+  
+  let verifyResult = null
   if (token) {
-    jwtPayload = decodeJwtPayload(token)
+    verifyResult = await verifyJwtTest(token, JWT_SECRET)
   }
-
-  let dbSessionInfo = null
-  if (validation?.sessionToken) {
-    try {
-      const res = await fetch(D1_API, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${D1_TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sql: `SELECT session_token, user_id, expires FROM sessions WHERE session_token = '${validation.sessionToken}' LIMIT 1` }),
-      })
-      dbSessionInfo = await res.json()
-    } catch (e) {
-      dbSessionInfo = { error: String(e) }
-    }
-  }
-
+  
   return NextResponse.json({
-    jwtPayload,
-    validation,
-    validationError,
-    jwtSecretUsed: JWT_SECRET.substring(0, 10) + '...',
-    dbSessionInfo,
+    hasToken: !!token,
+    tokenPrefix: token ? token.substring(0, 20) + '...' : null,
+    jwtSecretLength: JWT_SECRET.length,
+    jwtSecretPrefix: JWT_SECRET.substring(0, 8) + '...',
+    verifyResult,
+    cookiesFound: Object.keys(cookies),
   })
 }
