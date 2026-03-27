@@ -1,5 +1,5 @@
 // GET /api/auth/callback/google - handles Google OAuth callback
-import { handleGoogleCallback, setSessionCookie } from '@/lib/auth'
+import { handleGoogleCallback } from '@/lib/auth'
 import { NextResponse } from 'next/server'
 
 export async function GET(req: Request): Promise<Response> {
@@ -8,8 +8,10 @@ export async function GET(req: Request): Promise<Response> {
   const state = url.searchParams.get('state')
   const error = url.searchParams.get('error')
 
+  console.error('Callback START', { error, hasCode: !!code, state: state ? state.substring(0, 10) : null })
+
   if (error) {
-    console.error('OAuth error from Google:', error)
+    console.error('Callback: Google error', error)
     return new Response(null, {
       status : 302,
       headers: { Location: `/?error=${encodeURIComponent(error)}` },
@@ -17,6 +19,7 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   if (!code) {
+    console.error('Callback: missing code')
     return new Response('Missing code', { status: 400 })
   }
 
@@ -28,6 +31,7 @@ export async function GET(req: Request): Promise<Response> {
     })
   )
   const savedState = cookies['oauth_state']
+  console.error('Callback: state check', { hasSavedState: !!savedState, stateMatch: state && savedState ? state === savedState : null })
   if (state && savedState && state !== savedState) {
     console.error('OAuth state mismatch')
     return new Response(null, {
@@ -37,12 +41,9 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   try {
+    console.error('Callback: calling handleGoogleCallback with code prefix:', code.substring(0, 10))
     const { token } = await handleGoogleCallback(code)
-    console.error('OAuth callback: success, token prefix:', token.substring(0, 20))
-
-    // Log the cookie that will be set
-    const testPayload = token.split('.')[1]
-    console.error('OAuth callback: token payload (base64):', testPayload)
+    console.error('Callback: success! token prefix:', token.substring(0, 20))
 
     const response = NextResponse.redirect(new URL('/dashboard', req.url))
     response.cookies.set('session_token', token, {
@@ -50,10 +51,12 @@ export async function GET(req: Request): Promise<Response> {
       sameSite: 'lax',
       path: '/',
       maxAge: 60 * 60 * 24 * 30,
+      secure: true,
     })
+    console.error('Callback: cookie set, redirecting to /dashboard')
     return response
   } catch (e) {
-    console.error('OAuth callback error:', e)
+    console.error('Callback CATCH:', e instanceof Error ? `${e.message}\n${e.stack}` : String(e))
     const msg = e instanceof Error ? e.message : String(e)
     return new Response(null, {
       status : 302,
