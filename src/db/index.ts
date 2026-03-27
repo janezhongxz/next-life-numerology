@@ -53,20 +53,35 @@ async function d1Query<T = Record<string, unknown>>(sql: string): Promise<T[]> {
   })
 }
 
+// Map raw D1 row to User (convert snake_case DB columns to camelCase)
+function rowToUser(row: Record<string, unknown>): schema.User {
+  return {
+    id           : row.id as string,
+    name         : (row.name as string) ?? null,
+    email        : (row.email as string) ?? null,
+    emailVerified: row.email_verified ? new Date(row.email_verified as number) : null,
+    image        : (row.image as string) ?? null,
+    googleId     : (row.google_id as string) ?? null,
+    createdAt    : row.created_at ? new Date(row.created_at as number) : new Date(),
+    updatedAt    : row.updated_at ? new Date(row.updated_at as number) : new Date(),
+    freeCreditsUsed: (row.free_credits_used as number) ?? 0,
+  }
+}
+
 function rowToCalculation(row: Record<string, unknown>): schema.Calculation {
   return {
-    id: row.id as string,
-    userId: row.user_id as string,
-    birthdate: row.birthdate as string,
-    name: row.name as string,
-    lifeNumber: row.life_number as number,
-    lang: (row.lang as string) ?? 'zh',
-    reportText: row.report_text as string | null,
-    createdAt: row.created_at ? new Date(row.created_at as number) : new Date(),
-    fingerprint: row.fingerprint as string | null,
-    isPaid: (row.is_paid as number) ?? 0,
-    question: row.question as string | null,
-    queryYear: row.query_year as number | null,
+    id          : row.id as string,
+    userId      : row.user_id as string,
+    birthdate   : row.birthdate as string,
+    name        : row.name as string,
+    lifeNumber  : row.life_number as number,
+    lang        : (row.lang as string) ?? 'zh',
+    reportText  : row.report_text as string | null,
+    createdAt   : row.created_at ? new Date(row.created_at as number) : new Date(),
+    fingerprint : row.fingerprint as string | null,
+    isPaid      : (row.is_paid as number) ?? 0,
+    question    : row.question as string | null,
+    queryYear   : row.query_year as number | null,
   }
 }
 
@@ -75,21 +90,25 @@ export const db = {
     const rows = await d1Query<Record<string, unknown>>(
       `SELECT * FROM users WHERE google_id = ${esc(googleId)} LIMIT 1`
     )
-    return rows[0] as unknown as schema.User | undefined
+    if (!rows[0]) return undefined
+    return rowToUser(rows[0])
   },
 
   async getUserById(id: string): Promise<schema.User | undefined> {
     const rows = await d1Query<Record<string, unknown>>(
       `SELECT * FROM users WHERE id = ${esc(id)} LIMIT 1`
     )
-    return rows[0] as unknown as schema.User | undefined
+    if (!rows[0]) return undefined
+    return rowToUser(rows[0])
   },
 
   async createUser(user: schema.InsertUser): Promise<schema.User> {
     await d1Query(
       `INSERT OR REPLACE INTO users (id, google_id, name, email, image) VALUES (${esc(user.id)}, ${esc(user.googleId)}, ${esc(user.name ?? null)}, ${esc(user.email ?? null)}, ${esc(user.image ?? null)})`
     )
-    return (await this.getUserById(user.id))!
+    const result = await this.getUserById(user.id)
+    if (!result) throw new Error(`Failed to create user ${user.id}`)
+    return result
   },
 
   async updateUser(id: string, data: { name?: string | null; image?: string | null }): Promise<void> {
