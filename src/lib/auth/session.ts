@@ -50,6 +50,8 @@ async function signJwt(payload: object, secret: string): Promise<string> {
 async function verifyJwt(token: string, secret: string): Promise<object | null> {
   try {
     const [headerB64, payloadB64, sigB64] = token.split('.')
+    if (!headerB64 || !payloadB64 || !sigB64) return null
+
     const sigData = base64UrlDecode(sigB64)
 
     const encoder = new TextEncoder()
@@ -67,6 +69,22 @@ async function verifyJwt(token: string, secret: string): Promise<object | null> 
   } catch {
     return null
   }
+}
+
+// Parse cookies from header string robustly
+function parseCookies(cookieHeader: string): Record<string, string> {
+  const result: Record<string, string> = {}
+  if (!cookieHeader) return result
+  cookieHeader.split(';').forEach(part => {
+    const trimmed = part.trim()
+    const eqIndex = trimmed.indexOf('=')
+    if (eqIndex > 0) {
+      const key = trimmed.substring(0, eqIndex)
+      const value = trimmed.substring(eqIndex + 1)
+      result[key] = value
+    }
+  })
+  return result
 }
 
 // Create session - stores JWT in D1 sessions table via REST API
@@ -92,20 +110,14 @@ export async function validateSession(req: Request): Promise<{
   sessionToken: string | null
 }> {
   const cookieHeader = req.headers.get('cookie') ?? ''
-  const cookies = Object.fromEntries(
-    cookieHeader.split(';').map(c => {
-      const [k, ...v] = c.trim().split('=')
-      return [k, v.join('=')]
-    })
-  )
+  const cookies = parseCookies(cookieHeader)
 
   const token = cookies['session_token']
   if (!token) return { userId: null, sessionToken: null }
 
   let payload: { sub?: string; sid?: string; exp?: number } | null
   try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    payload = await verifyJwt(token, JWT_SECRET) as any
+    payload = await verifyJwt(token, JWT_SECRET) as { sub?: string; sid?: string; exp?: number } | null
   } catch {
     return { userId: null, sessionToken: null }
   }
@@ -126,7 +138,7 @@ export async function deleteSession(sessionToken: string): Promise<void> {
   await db.deleteSession(sessionToken)
 }
 
-// Set session cookie on response
+// Set session cookie on response (App Router compatible)
 export function setSessionCookie(response: Response, token: string): Response {
   const expires = new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000)
   response.headers.set(
