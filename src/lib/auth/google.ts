@@ -1,10 +1,14 @@
 // Google OAuth 2.0 configuration and helpers
 // No external auth library needed - works with Cloudflare Pages edge runtime
 
+// Trim whitespace from env vars (Cloudflare sometimes injects whitespace)
+const GOOGLE_CLIENT_ID = (process.env.GOOGLE_CLIENT_ID ?? '').trim()
+const GOOGLE_CLIENT_SECRET = (process.env.GOOGLE_CLIENT_SECRET ?? '').trim()
+
 export const GOOGLE_CONFIG = {
-  clientId     : process.env.GOOGLE_CLIENT_ID!,
-  clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-  redirectUri : `https://lifenumerology.shop/api/auth/callback/google`,
+  clientId     : GOOGLE_CLIENT_ID,
+  clientSecret : GOOGLE_CLIENT_SECRET,
+  redirectUri  : `https://lifenumerology.shop/api/auth/callback/google`,
 }
 
 // Step 1: Generate Google OAuth URL
@@ -41,7 +45,8 @@ export async function exchangeCodeForTokens(code: string): Promise<{
   })
 
   if (!res.ok) {
-    throw new Error(`Token exchange failed: ${res.status}`)
+    const text = await res.text().catch(() => '')
+    throw new Error(`Token exchange failed: ${res.status} - ${text}`)
   }
 
   return res.json()
