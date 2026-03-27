@@ -87,7 +87,7 @@ export const db = {
 
   async createUser(user: schema.InsertUser): Promise<schema.User> {
     await d1Query(
-      `INSERT INTO users (id, google_id, name, email, image) VALUES (${esc(user.id)}, ${esc(user.googleId)}, ${esc(user.name ?? null)}, ${esc(user.email ?? null)}, ${esc(user.image ?? null)})`
+      `INSERT OR REPLACE INTO users (id, google_id, name, email, image) VALUES (${esc(user.id)}, ${esc(user.googleId)}, ${esc(user.name ?? null)}, ${esc(user.email ?? null)}, ${esc(user.image ?? null)})`
     )
     return (await this.getUserById(user.id))!
   },
