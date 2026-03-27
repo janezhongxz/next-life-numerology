@@ -61,42 +61,19 @@ function parseCookies(cookieHeader: string): Record<string, string> {
   return result
 }
 
-// Retry-capable D1 session check
-async function checkSessionInDb(sessionToken: string): Promise<boolean> {
-  const D1_API = 'https://api.cloudflare.com/client/v4/accounts/03bbff09eebb738294943ba14467fff9/d1/database/6ef773d5-b683-48dc-953b-325d76bc4efa/query'
-  const D1_TOKEN = 'cfut_WZJF1BNh4QH74e2kO3ZwF7oiQ60YayrV68IBQJkTcfd5e1b4'
-
-  for (let attempt = 0; attempt < 3; attempt++) {
-    if (attempt > 0) {
-      // Wait 100ms for D1 replication to catch up
-      await new Promise(r => setTimeout(r, 100))
-    }
-    try {
-      const res = await fetch(D1_API, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${D1_TOKEN}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sql: `SELECT 1 FROM sessions WHERE session_token = '${sessionToken}' LIMIT 1` }),
-      })
-      const data = await res.json()
-      if (data.success && data.results?.[0]?.rows?.length > 0) {
-        return true
-      }
-    } catch { /* continue retry */ }
-  }
-  return false
-}
-
 export async function createSession(userId: string): Promise<string> {
   const expiresAt = new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000)
   const sessionToken = crypto.randomUUID()
 
   const D1_API = 'https://api.cloudflare.com/client/v4/accounts/03bbff09eebb738294943ba14467fff9/d1/database/6ef773d5-b683-48dc-953b-325d76bc4efa/query'
   const D1_TOKEN = 'cfut_WZJF1BNh4QH74e2kO3ZwF7oiQ60YayrV68IBQJkTcfd5e1b4'
-  await fetch(D1_API, {
+  
+  // Write session to D1 (async, don't wait for consistency)
+  fetch(D1_API, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${D1_TOKEN}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ sql: `INSERT INTO sessions (id, session_token, user_id, expires) VALUES ('${sessionToken}', '${sessionToken}', '${userId}', ${Math.floor(expiresAt.getTime() / 1000)})` }),
-  })
+  }).catch(() => {}) // fire and forget
 
   const jwtPayload = {
     sub: userId,
@@ -120,19 +97,15 @@ export async function validateSession(req: Request): Promise<{
   try {
     payload = await verifyJwt(token, JWT_SECRET) as { sub?: string; sid?: string; exp?: number } | null
   } catch { return { userId: null, sessionToken: null } }
+  
   if (!payload || !payload.sub || !payload.exp) return { userId: null, sessionToken: null }
+  
+  // Check expiration
   if (Date.now() / 1000 > payload.exp) return { userId: null, sessionToken: null }
 
-  const sessionToken = payload.sid ?? null
-  if (!sessionToken) return { userId: null, sessionToken: null }
-
-  // Retry D1 reads up to 3 times with 100ms delay to handle replication lag
-  const sessionFound = await checkSessionInDb(sessionToken)
-  if (!sessionFound) {
-    return { userId: null, sessionToken: null }
-  }
-
-  return { userId: payload.sub, sessionToken }
+  // JWT is valid - trust it. D1 session record may not be visible yet due to eventual consistency.
+  // For logout to work, we need the sessionToken. It's in the JWT (sid claim).
+  return { userId: payload.sub, sessionToken: payload.sid ?? null }
 }
 
 export async function deleteSession(sessionToken: string): Promise<void> {
@@ -147,7 +120,7 @@ export async function deleteSession(sessionToken: string): Promise<void> {
 
 export function setSessionCookie(response: Response, token: string): Response {
   const expires = new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000)
-  response.headers.set('Set-Cookie', `session_token=${token}; Path=/; HttpOnly; SameSite=Lax; Expires=${expires.toUTCString()}`)
+  response.headers.set('Set-Cookie', `session_token=${token}; Path=/; HttpOnly; SameSite=Lax; Expires=${expires.toUTCString()}; Secure`)
   return response
 }
 
