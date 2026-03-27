@@ -3,7 +3,7 @@ import * as schema from './schema'
 
 export { schema }
 
-// D1 REST API - note: singular "database" not "databases"
+// D1 REST API
 const D1_API = 'https://api.cloudflare.com/client/v4/accounts/03bbff09eebb738294943ba14467fff9/d1/database/6ef773d5-b683-48dc-953b-325d76bc4efa/query'
 const D1_TOKEN = 'cfut_WZJF1BNh4QH74e2kO3ZwF7oiQ60YayrV68IBQJkTcfd5e1b4'
 
@@ -13,14 +13,12 @@ interface D1Result {
   errors?: Array<{ code: number; message: string }>
 }
 
-// Escape string value for inline use (basic SQL injection prevention for UUIDs/emails)
 function esc(v: unknown): string {
   if (v === null || v === undefined) return 'NULL'
   const s = String(v).replace(/'/g, "''")
   return `'${s}'`
 }
 
-// Execute SQL against D1 REST API
 async function d1Query<T = Record<string, unknown>>(sql: string): Promise<T[]> {
   const res = await fetch(D1_API, {
     method: 'POST',
@@ -53,7 +51,6 @@ async function d1Query<T = Record<string, unknown>>(sql: string): Promise<T[]> {
   })
 }
 
-// Map raw D1 row to User (convert snake_case DB columns to camelCase)
 function rowToUser(row: Record<string, unknown>): schema.User {
   return {
     id           : row.id as string,
@@ -103,11 +100,15 @@ export const db = {
   },
 
   async createUser(user: schema.InsertUser): Promise<schema.User> {
+    // Use INSERT OR IGNORE to handle race conditions; if google_id already exists, do nothing
     await d1Query(
-      `INSERT OR REPLACE INTO users (id, google_id, name, email, image) VALUES (${esc(user.id)}, ${esc(user.googleId)}, ${esc(user.name ?? null)}, ${esc(user.email ?? null)}, ${esc(user.image ?? null)})`
+      `INSERT OR IGNORE INTO users (id, google_id, name, email, image) VALUES (${esc(user.id)}, ${esc(user.googleId)}, ${esc(user.name ?? null)}, ${esc(user.email ?? null)}, ${esc(user.image ?? null)})`
     )
-    const result = await this.getUserById(user.id)
-    if (!result) throw new Error(`Failed to create user ${user.id}`)
+    // Now fetch by google_id to get the canonical record
+    const result = await this.getUserByGoogleId(user.googleId)
+    if (!result) {
+      throw new Error(`createUser failed: cannot find user after insert for google_id=${user.googleId}`)
+    }
     return result
   },
 
