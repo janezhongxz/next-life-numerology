@@ -4,7 +4,7 @@ import * as schema from './schema'
 export { schema }
 
 // D1 REST API config
-const D1_API = 'https://api.cloudflare.com/client/v4/accounts/03bbff09eebb738294943ba14467fff9/d1/databases/6ef773d5-b683-48dc-953b-325d76bc4efa/query'
+const D1_API = 'https://api.cloudflare.com/client/v4/accounts/03bbff09eebb738294943ba14467fff9/d1/database/6ef773d5-b683-48dc-953b-325d76bc4efa/query'
 const D1_TOKEN = 'cfut_WZJF1BNh4QH74e2kO3ZwF7oiQ60YayrV68IBQJkTcfd5e1b4'
 
 interface D1Result {
