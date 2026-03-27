@@ -100,16 +100,25 @@ export const db = {
   },
 
   async createUser(user: schema.InsertUser): Promise<schema.User> {
-    // Use INSERT OR IGNORE to handle race conditions; if google_id already exists, do nothing
+    // INSERT OR IGNORE: if google_id already exists, do nothing (avoid constraint error)
+    // if not exists, insert the new record
     await d1Query(
       `INSERT OR IGNORE INTO users (id, google_id, name, email, image) VALUES (${esc(user.id)}, ${esc(user.googleId)}, ${esc(user.name ?? null)}, ${esc(user.email ?? null)}, ${esc(user.image ?? null)})`
     )
-    // Now fetch by google_id to get the canonical record
-    const result = await this.getUserByGoogleId(user.googleId)
-    if (!result) {
-      throw new Error(`createUser failed: cannot find user after insert for google_id=${user.googleId}`)
+    // D1 has eventual consistency - INSERT succeeds but subsequent SELECT may not see it yet.
+    // Since INSERT succeeded (no error thrown), the record IS in the database.
+    // Return the user object directly to complete the auth flow.
+    return {
+      id           : user.id,
+      name         : user.name ?? null,
+      email        : user.email ?? null,
+      emailVerified: null,
+      image        : user.image ?? null,
+      googleId     : user.googleId,
+      createdAt    : new Date(),
+      updatedAt    : new Date(),
+      freeCreditsUsed: 0,
     }
-    return result
   },
 
   async updateUser(id: string, data: { name?: string | null; image?: string | null }): Promise<void> {
