@@ -22,12 +22,25 @@ async function d1Query<T = Record<string, unknown>>(sql: string, params: unknown
     },
     body: JSON.stringify({ sql, params }),
   })
-  const data: D1Result = await res.json()
+
+  let data: D1Result
+  try {
+    data = await res.json()
+  } catch (parseErr) {
+    const text = await res.text().catch(() => 'empty')
+    throw new Error(`D1 parse error: ${parseErr} | status: ${res.status} | body: ${text.substring(0, 200)}`)
+  }
+
+  if (!res.ok) {
+    throw new Error(`D1 HTTP error: ${res.status} ${res.statusText} | body: ${JSON.stringify(data).substring(0, 200)}`)
+  }
+
   if (!data.success || data.errors?.length) {
-    const msg = data.errors?.[0]?.message ?? 'D1 query failed'
+    const msg = data.errors?.map(e => e.message).join('; ') ?? 'D1 query failed'
     throw new Error(`D1 error: ${msg} | sql: ${sql.substring(0, 80)}`)
   }
-  if (!data.results?.[0]) return []
+
+  if (!data.results || !data.results[0]) return []
   const { columns, rows } = data.results[0]
   return rows.map(row => {
     const obj: Record<string, unknown> = {}
