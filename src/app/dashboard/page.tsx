@@ -31,9 +31,12 @@ export default function DashboardPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch('/api/auth/me').then(r => r.json()),
-      fetch('/api/user/credits').then(r => r.json()),
-      fetch('/api/user/history').then(r => r.json()),
+      fetch('/api/auth/me').then(async r => {
+        if (!r.ok) throw new Error('auth failed')
+        return r.json()
+      }),
+      fetch('/api/user/credits').then(r => r.json()).catch(() => ({ creditsUsed: 0, creditsRemaining: 1 })),
+      fetch('/api/user/history').then(r => r.json()).catch(() => ({ history: [] })),
     ]).then(([userData, creditsData, historyData]) => {
       if (!userData.user) {
         router.push('/')

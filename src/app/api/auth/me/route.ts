@@ -5,19 +5,14 @@ import { NextResponse } from 'next/server'
 export async function GET(req: Request): Promise<Response> {
   try {
     const user = await getAuthUser(req)
-    if (!user) {
-      return NextResponse.json({ user: null }, { status: 401 })
-    }
-    return NextResponse.json({
-      user: {
-        id   : user.id,
-        name : user.name,
-        email: user.email,
-        image: user.image,
-      }
-    })
+    return NextResponse.json({ user: user ? {
+      id   : user.id,
+      name : user.name,
+      email: user.email,
+      image: user.image,
+    } : null })
   } catch (err) {
     console.error('[/api/auth/me]', err)
-    return NextResponse.json({ error: 'Internal error', detail: String(err) }, { status: 500 })
+    return NextResponse.json({ user: null, error: String(err) }, { status: 200 })
   }
 }
