@@ -1,5 +1,6 @@
 // GET /api/auth/callback/google - handles Google OAuth callback
 import { handleGoogleCallback, setSessionCookie } from '@/lib/auth'
+import { NextResponse } from 'next/server'
 
 export async function GET(req: Request): Promise<Response> {
   const url = new URL(req.url)
@@ -36,16 +37,21 @@ export async function GET(req: Request): Promise<Response> {
   }
 
   try {
-    console.error('OAuth callback: starting handleGoogleCallback, code prefix:', code.substring(0, 10))
     const { token } = await handleGoogleCallback(code)
-    console.error('OAuth callback: success, token created')
+    console.error('OAuth callback: success, token prefix:', token.substring(0, 20))
 
-    const response = new Response(null, {
-      status : 302,
-      headers: { Location: '/dashboard' },
+    // Log the cookie that will be set
+    const testPayload = token.split('.')[1]
+    console.error('OAuth callback: token payload (base64):', testPayload)
+
+    const response = NextResponse.redirect(new URL('/dashboard', req.url))
+    response.cookies.set('session_token', token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 30,
     })
-
-    return setSessionCookie(response, token)
+    return response
   } catch (e) {
     console.error('OAuth callback error:', e)
     const msg = e instanceof Error ? e.message : String(e)
