@@ -108,7 +108,7 @@ export async function POST(req: Request): Promise<Response> {
     lang: 'zh',
     reportText,
     fingerprint,
-    isPaid: false,
+    isPaid: 0,
     question: question ?? null,
     queryYear: queryYear ?? null,
   })
