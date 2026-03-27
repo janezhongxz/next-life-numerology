@@ -8,7 +8,7 @@ export async function GET(req: Request): Promise<Response> {
   const state = url.searchParams.get('state')
   const error = url.searchParams.get('error')
 
-  console.error('Callback START', { error, hasCode: !!code, state: state ? state.substring(0, 10) : null })
+  console.error('Callback START', { error, hasCode: !!code })
 
   if (error) {
     console.error('Callback: Google error', error)
@@ -23,27 +23,9 @@ export async function GET(req: Request): Promise<Response> {
     return new Response('Missing code', { status: 400 })
   }
 
-  // Verify state (CSRF protection)
-  const cookies = Object.fromEntries(
-    (req.headers.get('cookie') ?? '').split(';').map(c => {
-      const [k, ...v] = c.trim().split('=')
-      return [k, v.join('=')]
-    })
-  )
-  const savedState = cookies['oauth_state']
-  console.error('Callback: state check', { hasSavedState: !!savedState, stateMatch: state && savedState ? state === savedState : null })
-  if (state && savedState && state !== savedState) {
-    console.error('OAuth state mismatch')
-    return new Response(null, {
-      status : 302,
-      headers: { Location: '/?error=state_mismatch' },
-    })
-  }
-
   try {
-    console.error('Callback: calling handleGoogleCallback with code prefix:', code.substring(0, 10))
-    const { token } = await handleGoogleCallback(code)
-    console.error('Callback: success! token prefix:', token.substring(0, 20))
+    const { userId, token } = await handleGoogleCallback(code)
+    console.error('Callback SUCCESS: userId=', userId, 'token prefix=', token.substring(0, 20))
 
     const response = NextResponse.redirect(new URL('/dashboard', req.url))
     response.cookies.set('session_token', token, {
@@ -53,10 +35,10 @@ export async function GET(req: Request): Promise<Response> {
       maxAge: 60 * 60 * 24 * 30,
       secure: true,
     })
-    console.error('Callback: cookie set, redirecting to /dashboard')
+    console.error('Callback: cookie set successfully, redirecting to /dashboard')
     return response
   } catch (e) {
-    console.error('Callback CATCH:', e instanceof Error ? `${e.message}\n${e.stack}` : String(e))
+    console.error('Callback CATCH:', e instanceof Error ? `${e.message}` : String(e))
     const msg = e instanceof Error ? e.message : String(e)
     return new Response(null, {
       status : 302,

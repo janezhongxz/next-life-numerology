@@ -1,67 +1,27 @@
-// GET /api/debug - minimal diagnostic
+// GET /api/debug - D1 database diagnostic
 import { NextResponse } from 'next/server'
 
-// Same decode logic as session.ts
-function base64UrlDecode(str: string): ArrayBuffer {
-  str = str.replace(/-/g, '+').replace(/_/g, '/')
-  while (str.length % 4) str += '='
-  const binary = atob(str)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) { bytes[i] = binary.charCodeAt(i) }
-  return bytes.buffer
-}
+const D1_API = 'https://api.cloudflare.com/client/v4/accounts/03bbff09eebb738294943ba14467fff9/d1/database/6ef773d5-b683-48dc-953b-325d76bc4efa/query'
+const D1_TOKEN = 'cfut_WZJF1BNh4QH74e2kO3ZwF7oiQ60YayrV68IBQJkTcfd5e1b4'
 
-function parseCookies(cookieHeader: string): Record<string, string> {
-  const result: Record<string, string> = {}
-  if (!cookieHeader) return result
-  cookieHeader.split(';').forEach(part => {
-    const trimmed = part.trim()
-    const eqIndex = trimmed.indexOf('=')
-    if (eqIndex > 0) {
-      result[trimmed.substring(0, eqIndex)] = trimmed.substring(eqIndex + 1)
-    }
+async function d1Query(sql: string) {
+  const res = await fetch(D1_API, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${D1_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sql }),
   })
-  return result
+  return await res.json()
 }
-
-// Inline minimal verifyJwt for diagnosis
-async function verifyJwtTest(token: string, secret: string) {
-  try {
-    const [headerB64, payloadB64, sigB64] = token.split('.')
-    if (!headerB64 || !payloadB64 || !sigB64) return { error: 'malformed token - missing parts' }
-    
-    const sigData = base64UrlDecode(sigB64)
-    const encoder = new TextEncoder()
-    const keyData = encoder.encode(secret)
-    const cryptoKey = await crypto.subtle.importKey('raw', keyData, { name: 'HMAC', hash: 'SHA-256' }, false, ['verify'])
-    const data = encoder.encode(`${headerB64}.${payloadB64}`)
-    const valid = await crypto.subtle.verify('HMAC', cryptoKey, sigData, data)
-    
-    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(payloadB64)))
-    return { valid, payload }
-  } catch (e) {
-    return { error: String(e) }
-  }
-}
-
-const JWT_SECRET = (process.env.JWT_SECRET ?? '').trim() || 'fallback-secret-change-in-production'
 
 export async function GET(req: Request): Promise<Response> {
-  const cookieHeader = req.headers.get('cookie') ?? ''
-  const cookies = parseCookies(cookieHeader)
-  const token = cookies['session_token']
-  
-  let verifyResult = null
-  if (token) {
-    verifyResult = await verifyJwtTest(token, JWT_SECRET)
-  }
-  
+  // Get all users
+  const usersResult = await d1Query('SELECT id, google_id, name, email FROM users LIMIT 10')
+  const sessionsResult = await d1Query('SELECT session_token, user_id, expires FROM sessions LIMIT 10')
+  const accountsResult = await d1Query('SELECT id, userId, provider, providerAccountId FROM accounts LIMIT 10')
+
   return NextResponse.json({
-    hasToken: !!token,
-    tokenPrefix: token ? token.substring(0, 20) + '...' : null,
-    jwtSecretLength: JWT_SECRET.length,
-    jwtSecretPrefix: JWT_SECRET.substring(0, 8) + '...',
-    verifyResult,
-    cookiesFound: Object.keys(cookies),
+    users: usersResult,
+    sessions: sessionsResult,
+    accounts: accountsResult,
   })
 }
