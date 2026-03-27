@@ -109,9 +109,12 @@ export async function validateSession(req: Request): Promise<{
   const token = cookies['session_token']
   if (!token) return { userId: null, sessionToken: null }
 
-  const payload = await verifyJwt(token, JWT_SECRET) as {
-    sub?: string; sid?: string; exp?: number
-  } | null
+  let payload: { sub?: string; sid?: string; exp?: number } | null = null
+  try {
+    payload = await verifyJwt(token, JWT_SECRET) as typeof payload
+  } catch {
+    return { userId: null, sessionToken: null }
+  }
 
   if (!payload || !payload.sub || !payload.exp) {
     return { userId: null, sessionToken: null }
