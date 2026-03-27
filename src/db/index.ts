@@ -100,14 +100,25 @@ export const db = {
   },
 
   async createUser(user: schema.InsertUser): Promise<schema.User> {
-    // INSERT OR IGNORE: if google_id already exists, do nothing (avoid constraint error)
-    // if not exists, insert the new record
+    // Check if google_id already exists (handles UNIQUE conflict)
+    const existing = await this.getUserByGoogleId(user.googleId)
+    if (existing) {
+      // google_id already in DB (possibly from a previous failed attempt).
+      // Update name/image if changed, return existing user.
+      if (existing.name !== (user.name ?? null) || existing.image !== (user.image ?? null)) {
+        await d1Query(
+          `UPDATE users SET name = ${esc(user.name ?? null)}, image = ${esc(user.image ?? null)} WHERE id = ${esc(existing.id)}`
+        )
+      }
+      return existing
+    }
+
+    // New user - insert
     await d1Query(
-      `INSERT OR IGNORE INTO users (id, google_id, name, email, image) VALUES (${esc(user.id)}, ${esc(user.googleId)}, ${esc(user.name ?? null)}, ${esc(user.email ?? null)}, ${esc(user.image ?? null)})`
+      `INSERT INTO users (id, google_id, name, email, image) VALUES (${esc(user.id)}, ${esc(user.googleId)}, ${esc(user.name ?? null)}, ${esc(user.email ?? null)}, ${esc(user.image ?? null)})`
     )
-    // D1 has eventual consistency - INSERT succeeds but subsequent SELECT may not see it yet.
-    // Since INSERT succeeded (no error thrown), the record IS in the database.
-    // Return the user object directly to complete the auth flow.
+
+    // Return object directly (D1 eventual consistency: INSERT succeeded but may not read back yet)
     return {
       id           : user.id,
       name         : user.name ?? null,
