@@ -64,7 +64,7 @@ export const db = {
     return rows[0] as schema.User | undefined
   },
 
-  async createUser(user: { id: string; name: string | null; email: string | null; image: string | null; googleId: string }): Promise<schema.User> {
+  async createUser(user: schema.InsertUser): Promise<schema.User> {
     await d1Query(
       'INSERT INTO users (id, name, email, image, google_id, free_credits_used) VALUES (?, ?, ?, ?, ?, 0)',
       [user.id, user.name ?? null, user.email ?? null, user.image ?? null, user.googleId]
@@ -99,12 +99,11 @@ export const db = {
     return rows[0] ? rowToCalculation(rows[0]) : undefined
   },
 
-  async createCalculation(calc: schema.Calculation): Promise<schema.Calculation> {
+  async createCalculation(calc: schema.InsertCalculation): Promise<void> {
     await d1Query(
       'INSERT INTO calculations (id, user_id, birthdate, name, life_number, lang, report_text, fingerprint, is_paid, question, query_year) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [calc.id, calc.userId, calc.birthdate, calc.name, calc.lifeNumber, calc.lang, calc.reportText ?? null, calc.fingerprint ?? null, calc.isPaid ?? 0, calc.question ?? null, calc.queryYear ?? null]
     )
-    return calc
   },
 
   async updateCalculation(id: string, data: { reportText?: string; isPaid?: number }): Promise<void> {

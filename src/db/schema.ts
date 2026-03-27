@@ -4,7 +4,12 @@ import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core'
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
 export interface User extends schemaUsers {}
 // eslint-disable-next-line @typescript-eslint/no-empty-interface
-export interface Calculation extends schemaCalculations {}
+export interface Calculation extends Omit<schemaCalculations, 'createdAt'> {
+  createdAt: Date
+}
+
+// Type for INSERT operations (DB auto-generates createdAt)
+export type InsertCalculation = Omit<schemaCalculations, 'createdAt'>
 
 interface schemaUsers {
   id: string
@@ -16,6 +21,13 @@ interface schemaUsers {
   createdAt: Date
   updatedAt: Date
   freeCreditsUsed: number
+}
+
+// Type for INSERT operations (DB auto-generates timestamps/credits)
+export type InsertUser = Omit<schemaUsers, 'createdAt' | 'updatedAt' | 'freeCreditsUsed'> & {
+  name?: string | null
+  email?: string | null
+  image?: string | null
 }
 
 interface schemaCalculations {
