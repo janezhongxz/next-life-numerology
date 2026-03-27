@@ -24,7 +24,9 @@ interface schemaUsers {
 }
 
 // Type for INSERT operations (DB auto-generates timestamps/credits)
-export type InsertUser = Omit<schemaUsers, 'createdAt' | 'updatedAt' | 'freeCreditsUsed'> & {
+export type InsertUser = {
+  id: string
+  googleId: string
   name?: string | null
   email?: string | null
   image?: string | null
