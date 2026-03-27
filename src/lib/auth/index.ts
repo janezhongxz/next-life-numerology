@@ -50,11 +50,11 @@ export async function handleGoogleCallback(code: string): Promise<{
   return { userId: user.id, token }
 }
 
-// Get current logged-in user
+// Get current logged-in user - with retry for D1 eventual consistency
 export async function getAuthUser(req: Request) {
   const { userId } = await validateSession(req)
   if (!userId) return null
-  return await db.getUserById(userId)
+  return await db.getUserByIdWithRetry(userId)
 }
 
 // Logout

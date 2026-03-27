@@ -82,17 +82,12 @@ function rowToCalculation(row: Record<string, unknown>): schema.Calculation {
   }
 }
 
-// Retry a D1 read with delays to handle eventual consistency
+// Retry-capable D1 query helper
 async function d1QueryWithRetry<T = Record<string, unknown>>(sql: string, retries = 3, delayMs = 150): Promise<T[]> {
   for (let attempt = 0; attempt < retries; attempt++) {
-    if (attempt > 0) {
-      await new Promise(r => setTimeout(r, delayMs * attempt))
-    }
+    if (attempt > 0) await new Promise(r => setTimeout(r, delayMs * attempt))
     const result = await d1Query<T>(sql)
-    // If we got rows, return them; if empty and have retries left, continue
-    if (result.length > 0 || attempt === retries - 1) {
-      return result
-    }
+    if (result.length > 0 || attempt === retries - 1) return result
   }
   return []
 }
@@ -114,6 +109,10 @@ export const db = {
     return rowToUser(rows[0])
   },
 
+  async getUserByIdWithRetry(id: string): Promise<schema.User | undefined> {
+    return this.getUserById(id) // getUserById already uses d1QueryWithRetry
+  },
+
   async createUser(user: schema.InsertUser): Promise<schema.User> {
     // Upsert: INSERT OR IGNORE handles the case where google_id already exists
     // due to D1 eventual consistency (getUserByGoogleId might have missed it)
@@ -125,9 +124,7 @@ export const db = {
     const rows = await d1QueryWithRetry<Record<string, unknown>>(
       `SELECT * FROM users WHERE google_id = ${esc(user.googleId)} LIMIT 1`
     )
-    if (rows[0]) {
-      return rowToUser(rows[0])
-    }
+    if (rows[0]) return rowToUser(rows[0])
 
     // Extremely rare: user was not found even after retry
     // Return constructed object (data is confirmed in DB even if we can't read it)
