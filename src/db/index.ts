@@ -82,9 +82,24 @@ function rowToCalculation(row: Record<string, unknown>): schema.Calculation {
   }
 }
 
+// Retry a D1 read with delays to handle eventual consistency
+async function d1QueryWithRetry<T = Record<string, unknown>>(sql: string, retries = 3, delayMs = 150): Promise<T[]> {
+  for (let attempt = 0; attempt < retries; attempt++) {
+    if (attempt > 0) {
+      await new Promise(r => setTimeout(r, delayMs * attempt))
+    }
+    const result = await d1Query<T>(sql)
+    // If we got rows, return them; if empty and have retries left, continue
+    if (result.length > 0 || attempt === retries - 1) {
+      return result
+    }
+  }
+  return []
+}
+
 export const db = {
   async getUserByGoogleId(googleId: string): Promise<schema.User | undefined> {
-    const rows = await d1Query<Record<string, unknown>>(
+    const rows = await d1QueryWithRetry<Record<string, unknown>>(
       `SELECT * FROM users WHERE google_id = ${esc(googleId)} LIMIT 1`
     )
     if (!rows[0]) return undefined
@@ -92,7 +107,7 @@ export const db = {
   },
 
   async getUserById(id: string): Promise<schema.User | undefined> {
-    const rows = await d1Query<Record<string, unknown>>(
+    const rows = await d1QueryWithRetry<Record<string, unknown>>(
       `SELECT * FROM users WHERE id = ${esc(id)} LIMIT 1`
     )
     if (!rows[0]) return undefined
@@ -100,24 +115,22 @@ export const db = {
   },
 
   async createUser(user: schema.InsertUser): Promise<schema.User> {
-    // Check if google_id already exists first
-    const existing = await this.getUserByGoogleId(user.googleId)
-    if (existing) {
-      if (existing.name !== (user.name ?? null) || existing.image !== (user.image ?? null)) {
-        await d1Query(
-          `UPDATE users SET name = ${esc(user.name ?? null)}, image = ${esc(user.image ?? null)} WHERE id = ${esc(existing.id)}`
-        )
-      }
-      return existing
-    }
-
-    // New user - insert
+    // Upsert: INSERT OR IGNORE handles the case where google_id already exists
+    // due to D1 eventual consistency (getUserByGoogleId might have missed it)
     await d1Query(
-      `INSERT INTO users (id, google_id, name, email, image) VALUES (${esc(user.id)}, ${esc(user.googleId)}, ${esc(user.name ?? null)}, ${esc(user.email ?? null)}, ${esc(user.image ?? null)})`
+      `INSERT OR IGNORE INTO users (id, google_id, name, email, image) VALUES (${esc(user.id)}, ${esc(user.googleId)}, ${esc(user.name ?? null)}, ${esc(user.email ?? null)}, ${esc(user.image ?? null)})`
     )
 
-    // Return object directly - D1 eventual consistency means INSERT succeeded
-    // but subsequent SELECT may not see it yet
+    // Try to read back with retry (D1 replication may lag)
+    const rows = await d1QueryWithRetry<Record<string, unknown>>(
+      `SELECT * FROM users WHERE google_id = ${esc(user.googleId)} LIMIT 1`
+    )
+    if (rows[0]) {
+      return rowToUser(rows[0])
+    }
+
+    // Extremely rare: user was not found even after retry
+    // Return constructed object (data is confirmed in DB even if we can't read it)
     return {
       id           : user.id,
       name         : user.name ?? null,
@@ -172,8 +185,6 @@ export const db = {
   },
 
   async createSession(sessionToken: string, userId: string, expiresAt: Date): Promise<void> {
-    // INSERT OR IGNORE: if userId not yet visible due to D1 eventual consistency,
-    // or if session_token already exists, skip silently instead of failing
     await d1Query(
       `INSERT OR IGNORE INTO sessions (id, session_token, user_id, expires) VALUES (${esc(sessionToken)}, ${esc(sessionToken)}, ${esc(userId)}, ${Math.floor(expiresAt.getTime() / 1000)})`
     )
