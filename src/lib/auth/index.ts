@@ -2,9 +2,9 @@
 // Edge-runtime compatible: uses D1 REST API (no binding issues)
 import { db } from '@/db'
 import { getGoogleAuthUrl, exchangeCodeForTokens, getGoogleUserInfo } from './google'
-import { createSession, deleteSession, setSessionCookie, clearSessionCookie, validateSession } from './session'
+import { createSession, deleteSession, setSessionCookie, clearSessionCookie, validateSession, SessionUser } from './session'
 
-export { getGoogleAuthUrl, validateSession, setSessionCookie, clearSessionCookie }
+export { getGoogleAuthUrl, validateSession, setSessionCookie, clearSessionCookie, SessionUser }
 
 // Find or create user by Google ID
 export async function findOrCreateUser(googleId: string, email: string, name: string, avatar: string) {
@@ -46,15 +46,20 @@ export async function handleGoogleCallback(code: string): Promise<{
     googleUser.name ?? '',
     googleUser.picture ?? '',
   )
-  const token = await createSession(user.id)
+  // Pass user info in JWT - no D1 read needed for auth
+  const token = await createSession(user.id, {
+    name: user.name,
+    email: user.email,
+    image: user.image,
+    googleId: user.googleId ?? googleUser.id,
+  })
   return { userId: user.id, token }
 }
 
-// Get current logged-in user - with retry for D1 eventual consistency
-export async function getAuthUser(req: Request) {
-  const { userId } = await validateSession(req)
-  if (!userId) return null
-  return await db.getUserByIdWithRetry(userId)
+// Get current logged-in user - uses JWT payload directly (no DB lookup)
+export async function getAuthUser(req: Request): Promise<SessionUser | null> {
+  const { user } = await validateSession(req)
+  return user
 }
 
 // Logout

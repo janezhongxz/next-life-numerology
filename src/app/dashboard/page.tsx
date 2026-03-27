@@ -30,7 +30,6 @@ export default function DashboardPage() {
       <div className="p-8">
         <h1 className="text-2xl font-bold mb-4">Not logged in</h1>
         <p className="text-red-500 mb-4">User is null - redirecting to home...</p>
-        <p className="text-xs text-gray-500">If you see this, /api/auth/me returned user: null</p>
         <Link href="/" className="text-blue-500 underline">Go home</Link>
       </div>
     )

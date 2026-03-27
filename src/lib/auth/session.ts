@@ -61,23 +61,33 @@ function parseCookies(cookieHeader: string): Record<string, string> {
   return result
 }
 
-export async function createSession(userId: string): Promise<string> {
+export interface SessionUser {
+  id: string
+  name: string | null
+  email: string | null
+  image: string | null
+  googleId: string
+}
+
+export async function createSession(userId: string, userInfo: { name: string | null; email: string | null; image: string | null; googleId: string }): Promise<string> {
   const expiresAt = new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000)
   const sessionToken = crypto.randomUUID()
 
   const D1_API = 'https://api.cloudflare.com/client/v4/accounts/03bbff09eebb738294943ba14467fff9/d1/database/6ef773d5-b683-48dc-953b-325d76bc4efa/query'
   const D1_TOKEN = 'cfut_WZJF1BNh4QH74e2kO3ZwF7oiQ60YayrV68IBQJkTcfd5e1b4'
-  
-  // Write session to D1 (async, don't wait for consistency)
   fetch(D1_API, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${D1_TOKEN}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ sql: `INSERT INTO sessions (id, session_token, user_id, expires) VALUES ('${sessionToken}', '${sessionToken}', '${userId}', ${Math.floor(expiresAt.getTime() / 1000)})` }),
-  }).catch(() => {}) // fire and forget
+    body: JSON.stringify({ sql: `INSERT OR IGNORE INTO sessions (id, session_token, user_id, expires) VALUES ('${sessionToken}', '${sessionToken}', '${userId}', ${Math.floor(expiresAt.getTime() / 1000)})` }),
+  }).catch(() => {})
 
   const jwtPayload = {
     sub: userId,
     sid: sessionToken,
+    name: userInfo.name,
+    email: userInfo.email,
+    image: userInfo.image,
+    googleId: userInfo.googleId,
     exp: Math.floor(expiresAt.getTime() / 1000),
     iat: Math.floor(Date.now() / 1000),
   }
@@ -87,25 +97,32 @@ export async function createSession(userId: string): Promise<string> {
 export async function validateSession(req: Request): Promise<{
   userId: string | null
   sessionToken: string | null
+  user: SessionUser | null
 }> {
   const cookieHeader = req.headers.get('cookie') ?? ''
   const cookies = parseCookies(cookieHeader)
   const token = cookies['session_token']
-  if (!token) return { userId: null, sessionToken: null }
+  if (!token) return { userId: null, sessionToken: null, user: null }
 
-  let payload: { sub?: string; sid?: string; exp?: number } | null
+  let payload: { sub?: string; sid?: string; exp?: number; name?: string | null; email?: string | null; image?: string | null; googleId?: string } | null
   try {
-    payload = await verifyJwt(token, JWT_SECRET) as { sub?: string; sid?: string; exp?: number } | null
-  } catch { return { userId: null, sessionToken: null } }
+    payload = await verifyJwt(token, JWT_SECRET) as typeof payload
+  } catch { return { userId: null, sessionToken: null, user: null } }
   
-  if (!payload || !payload.sub || !payload.exp) return { userId: null, sessionToken: null }
-  
-  // Check expiration
-  if (Date.now() / 1000 > payload.exp) return { userId: null, sessionToken: null }
+  if (!payload || !payload.sub || !payload.exp) return { userId: null, sessionToken: null, user: null }
+  if (Date.now() / 1000 > payload.exp) return { userId: null, sessionToken: null, user: null }
 
-  // JWT is valid - trust it. D1 session record may not be visible yet due to eventual consistency.
-  // For logout to work, we need the sessionToken. It's in the JWT (sid claim).
-  return { userId: payload.sub, sessionToken: payload.sid ?? null }
+  return {
+    userId: payload.sub,
+    sessionToken: payload.sid ?? null,
+    user: payload.sub ? {
+      id: payload.sub,
+      name: payload.name ?? null,
+      email: payload.email ?? null,
+      image: payload.image ?? null,
+      googleId: payload.googleId ?? '',
+    } : null,
+  }
 }
 
 export async function deleteSession(sessionToken: string): Promise<void> {
