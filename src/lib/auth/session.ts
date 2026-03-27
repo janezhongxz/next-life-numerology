@@ -5,7 +5,7 @@ import { getDb } from '@/db'
 import { sessions, users } from '@/db/schema'
 import { eq } from 'drizzle-orm'
 
-const JWT_SECRET = process.env.JWT_SECRET ?? 'fallback-secret-change-in-production'
+const JWT_SECRET = (process.env.JWT_SECRET ?? '').trim() || 'fallback-secret-change-in-production'
 const SESSION_DURATION_DAYS = 30
 
 // Base64URL encoding (RFC 4648)
