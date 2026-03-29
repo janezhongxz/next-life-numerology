@@ -27,14 +27,12 @@ export async function GET(req: Request): Promise<Response> {
     const { userId, token } = await handleGoogleCallback(code)
     console.error('Callback SUCCESS: userId=', userId, 'token prefix=', token.substring(0, 20))
 
+    const expires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     const response = NextResponse.redirect(new URL('/dashboard', req.url))
-    response.cookies.set('session_token', token, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 30,
-      secure: true,
-    })
+    response.headers.set(
+      'Set-Cookie',
+      `session_token=${token}; Path=/; HttpOnly; SameSite=Lax; Secure; Expires=${expires.toUTCString()}`
+    )
     console.error('Callback: cookie set successfully, redirecting to /dashboard')
     return response
   } catch (e) {
