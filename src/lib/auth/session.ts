@@ -1,7 +1,7 @@
 // JWT utilities using Web Crypto API (available in edge runtime)
 // HMAC-SHA256 signing - compatible with Cloudflare Workers
 
-const JWT_SECRET = (process.env.JWT_SECRET ?? '').trim() || 'fallback-secret-change-in-production'
+const JWT_SECRET = (process.env.JWT_SECRET ?? '').trim() || '7a9f2e8b4c1d6e3a5f8b2c9d4e7a1b6c3f5e8a2d9c4b7e1a6f3c8b5d2e9a4c7b'
 const SESSION_DURATION_DAYS = 30
 
 function base64UrlEncode(data: ArrayBuffer): string {
