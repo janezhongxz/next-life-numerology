@@ -61,15 +61,13 @@ function parseCookies(cookieHeader: string): Record<string, string> {
   return result
 }
 
-export interface SessionUser {
+export async function createSession(userId: string, userInfo: {
   id: string
-  name: string | null
-  email: string | null
-  image: string | null
+  name: string
+  email: string
+  image: string
   googleId: string
-}
-
-export async function createSession(userId: string, userInfo: { name: string | null; email: string | null; image: string | null; googleId: string }): Promise<string> {
+}): Promise<string> {
   const expiresAt = new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000)
   const sessionToken = crypto.randomUUID()
 
@@ -97,7 +95,7 @@ export async function createSession(userId: string, userInfo: { name: string | n
 export async function validateSession(req: Request): Promise<{
   userId: string | null
   sessionToken: string | null
-  user: SessionUser | null
+  user: { id: string; name: string; email: string; image: string; googleId: string } | null
 }> {
   const cookieHeader = req.headers.get('cookie') ?? ''
   const cookies = parseCookies(cookieHeader)
@@ -117,9 +115,9 @@ export async function validateSession(req: Request): Promise<{
     sessionToken: payload.sid ?? null,
     user: payload.sub ? {
       id: payload.sub,
-      name: payload.name ?? null,
-      email: payload.email ?? null,
-      image: payload.image ?? null,
+      name: payload.name ?? '',
+      email: payload.email ?? '',
+      image: payload.image ?? '',
       googleId: payload.googleId ?? '',
     } : null,
   }

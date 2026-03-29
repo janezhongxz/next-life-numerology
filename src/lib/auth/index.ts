@@ -2,9 +2,17 @@
 // Edge-runtime compatible: uses D1 REST API (no binding issues)
 import { db } from '@/db'
 import { getGoogleAuthUrl, exchangeCodeForTokens, getGoogleUserInfo } from './google'
-import { createSession, deleteSession, setSessionCookie, clearSessionCookie, validateSession, SessionUser } from './session'
+import { createSession, deleteSession, setSessionCookie, clearSessionCookie, validateSession } from './session'
 
-export { getGoogleAuthUrl, validateSession, setSessionCookie, clearSessionCookie, SessionUser }
+export interface SessionUser {
+  id: string
+  name: string
+  email: string
+  image: string
+  googleId: string
+}
+
+export { getGoogleAuthUrl, validateSession, setSessionCookie, clearSessionCookie }
 
 // Find or create user by Google ID
 export async function findOrCreateUser(googleId: string, email: string, name: string, avatar: string) {
@@ -48,9 +56,10 @@ export async function handleGoogleCallback(code: string): Promise<{
   )
   // Pass user info in JWT - no D1 read needed for auth
   const token = await createSession(user.id, {
-    name: user.name,
-    email: user.email,
-    image: user.image,
+    id: user.id,
+    name: user.name ?? 'User',
+    email: user.email ?? '',
+    image: user.image ?? '',
     googleId: user.googleId ?? googleUser.id,
   })
   return { userId: user.id, token }
