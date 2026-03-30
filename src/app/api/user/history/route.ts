@@ -8,6 +8,6 @@ export async function GET() {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
-  const history = await db.getCalculationsByUserId(session.user.id)
+  const history = await db.getCalculations(session.user.id)
   return NextResponse.json({ history })
 }

@@ -93,6 +93,14 @@ async function d1QueryWithRetry<T = Record<string, unknown>>(sql: string, retrie
 }
 
 export const db = {
+  async getUserByEmail(email: string): Promise<schema.User | undefined> {
+    const rows = await d1QueryWithRetry<Record<string, unknown>>(
+      `SELECT * FROM users WHERE email = ${esc(email)} LIMIT 1`
+    )
+    if (!rows[0]) return undefined
+    return rowToUser(rows[0])
+  },
+
   async getUserByGoogleId(googleId: string): Promise<schema.User | undefined> {
     const rows = await d1QueryWithRetry<Record<string, unknown>>(
       `SELECT * FROM users WHERE google_id = ${esc(googleId)} LIMIT 1`
@@ -141,10 +149,12 @@ export const db = {
     }
   },
 
-  async updateUser(id: string, data: { name?: string | null; image?: string | null }): Promise<void> {
+  async updateUser(id: string, data: { name?: string | null; image?: string | null; googleId?: string | null; email?: string | null }): Promise<void> {
     const sets: string[] = []
     if (data.name !== undefined) sets.push(`name = ${esc(data.name)}`)
     if (data.image !== undefined) sets.push(`image = ${esc(data.image)}`)
+    if (data.googleId !== undefined) sets.push(`google_id = ${esc(data.googleId)}`)
+    if (data.email !== undefined) sets.push(`email = ${esc(data.email)}`)
     if (sets.length === 0) return
     await d1Query(`UPDATE users SET ${sets.join(', ')} WHERE id = ${esc(id)}`)
   },
