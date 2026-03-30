@@ -92,6 +92,8 @@ const D1Adapter: Adapter = {
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   adapter: D1Adapter,
+  trustHost: true,
+  secret: process.env.AUTH_SECRET || '7a9f2e8b4c1d6e3a5f8b2c9d4e7a1b6c3f5e8a2d9c4b7e1a6f3c8b5d2e9a4c7b',
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID!,
