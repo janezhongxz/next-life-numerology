@@ -122,20 +122,17 @@ export const db = {
   },
 
   async createUser(user: schema.InsertUser): Promise<schema.User> {
-    // Upsert: INSERT OR IGNORE handles the case where google_id already exists
-    // due to D1 eventual consistency (getUserByGoogleId might have missed it)
     await d1Query(
       `INSERT OR IGNORE INTO users (id, google_id, name, email, image) VALUES (${esc(user.id)}, ${esc(user.googleId)}, ${esc(user.name ?? null)}, ${esc(user.email ?? null)}, ${esc(user.image ?? null)})`
     )
 
-    // Try to read back with retry (D1 replication may lag)
+    // Read back by id (most reliable — googleId may be null at this stage)
     const rows = await d1QueryWithRetry<Record<string, unknown>>(
-      `SELECT * FROM users WHERE google_id = ${esc(user.googleId)} LIMIT 1`
+      `SELECT * FROM users WHERE id = ${esc(user.id)} LIMIT 1`
     )
     if (rows[0]) return rowToUser(rows[0])
 
-    // Extremely rare: user was not found even after retry
-    // Return constructed object (data is confirmed in DB even if we can't read it)
+    // Fallback: return constructed object
     return {
       id           : user.id,
       name         : user.name ?? null,

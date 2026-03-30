@@ -26,7 +26,7 @@ interface schemaUsers {
 // Type for INSERT operations (DB auto-generates timestamps/credits)
 export type InsertUser = {
   id: string
-  googleId: string
+  googleId: string | null
   name?: string | null
   email?: string | null
   image?: string | null

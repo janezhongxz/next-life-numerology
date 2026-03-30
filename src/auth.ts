@@ -1,93 +1,84 @@
 import NextAuth from "next-auth"
 import Google from "next-auth/providers/google"
-import type { Adapter } from "next-auth/adapters"
+import type { Adapter, AdapterUser } from "next-auth/adapters"
 import { db } from "@/db"
 
 // Custom adapter for D1 REST API
 const D1Adapter: Adapter = {
-  async createUser(user) {
+  async createUser(user): Promise<AdapterUser> {
     const id = crypto.randomUUID()
+    // googleId is unknown at this stage — linkAccount sets it later
     await db.createUser({
       id,
-      googleId: user.email || '',
-      name: user.name,
+      googleId: null,
+      name: user.name ?? null,
       email: user.email,
-      image: user.image,
+      image: user.image ?? null,
     })
-    return { ...user, id, emailVerified: null }
+    return { id, name: user.name ?? null, email: user.email, emailVerified: null, image: user.image ?? null }
   },
-  
-  async getUser(id) {
+
+  async getUser(id): Promise<AdapterUser | null> {
     const user = await db.getUserById(id)
     if (!user) return null
     return {
       id: user.id,
       name: user.name,
-      email: user.email || '',
+      email: user.email ?? '',
       emailVerified: user.emailVerified,
       image: user.image,
     }
   },
-  
-  async getUserByEmail(email) {
+
+  async getUserByEmail(email): Promise<AdapterUser | null> {
     const user = await db.getUserByEmail(email)
     if (!user) return null
     return {
       id: user.id,
       name: user.name,
-      email: user.email || '',
+      email: user.email ?? '',
       emailVerified: user.emailVerified,
       image: user.image,
     }
   },
-  
-  async getUserByAccount({ provider, providerAccountId }) {
+
+  async getUserByAccount({ provider, providerAccountId }): Promise<AdapterUser | null> {
     if (provider === 'google') {
       const user = await db.getUserByGoogleId(providerAccountId)
       if (!user) return null
       return {
         id: user.id,
         name: user.name,
-        email: user.email || '',
+        email: user.email ?? '',
         emailVerified: user.emailVerified,
         image: user.image,
       }
     }
     return null
   },
-  
-  async updateUser(user) {
+
+  async updateUser(user): Promise<AdapterUser> {
     await db.updateUser(user.id, {
-      name: user.name,
+      name: user.name ?? null,
       email: user.email,
-      image: user.image,
+      image: user.image ?? null,
     })
-    return user as any
+    return user as AdapterUser
   },
-  
+
   async linkAccount(account) {
-    // Store googleId in users table
+    // Store the real Google providerAccountId as googleId
     if (account.provider === 'google') {
       await db.updateUser(account.userId, { googleId: account.providerAccountId })
     }
     return account as any
   },
-  
-  async createSession(session) {
-    return session as any
-  },
-  
-  async getSessionAndUser(sessionToken) {
-    return null
-  },
-  
-  async updateSession(session) {
-    return session as any
-  },
-  
-  async deleteSession(sessionToken) {
-    return
-  },
+
+  // Session methods — using JWT strategy, these are no-ops
+  async createSession(session) { return session as any },
+  async getSessionAndUser(_sessionToken) { return null },
+  async updateSession(session) { return session as any },
+  async deleteSession(_sessionToken) { return },
 }
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -105,7 +96,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   callbacks: {
     async jwt({ token, user, account }) {
-      if (user) {
+      if (user?.id) {
         token.id = user.id
       }
       if (account?.provider === 'google') {
@@ -114,7 +105,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return token
     },
     async session({ session, token }) {
-      if (session.user) {
+      if (session.user && token.id) {
         session.user.id = token.id as string
       }
       return session
