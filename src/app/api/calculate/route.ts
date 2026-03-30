@@ -1,34 +1,27 @@
-// POST /api/calculate - Core business logic: fingerprint check, free credits, paid判定
 import { NextResponse } from 'next/server'
+import { auth } from '@/auth'
 import { db } from '@/db'
-import { validateSession } from '@/lib/auth'
 import { calculate, CalculatorResult } from '@/lib/calculator'
 import { createHash } from 'crypto'
 
 export async function POST(req: Request): Promise<Response> {
   try {
-    // 1. Auth check
-    const { userId } = await validateSession(req)
-    if (!userId) {
+    const session = await auth()
+    if (!session?.user?.id) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // 2. Parse body
     const { birthDate, name, queryYear, question } = await req.json()
     if (!birthDate || !name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    // 3. Generate fingerprint
     const fingerprint = createHash('sha256')
       .update(`${name}|${birthDate}|${queryYear ?? ''}|${question ?? ''}`)
       .digest('hex')
 
-    // 4. Check fingerprint → existing report
-    const existing = await db.getCalculationByFingerprint(fingerprint, userId)
-
-    // Get user
-    const user = await db.getUserById(userId)
+    const existing = await db.getCalculationByFingerprint(fingerprint, session.user.id)
+    const user = await db.getUserById(session.user.id)
     const creditsUsed = user?.freeCreditsUsed ?? 0
 
     if (existing) {
@@ -48,11 +41,10 @@ export async function POST(req: Request): Promise<Response> {
           message: '此配置需要付费',
         })
       }
-      // Has credits, recalculate
       const result = calculate(birthDate, name, queryYear)
       const reportText = await generateReport(result, name, question)
       await db.updateCalculation(existing.id, { reportText })
-      await db.incrementUserCredits(userId)
+      await db.incrementUserCredits(session.user.id)
       return NextResponse.json({
         type: 'new_with_credit',
         id: existing.id,
@@ -62,7 +54,6 @@ export async function POST(req: Request): Promise<Response> {
       })
     }
 
-    // 5. New calculation - check credits
     if (creditsUsed >= 1) {
       return NextResponse.json({
         type: 'no_credits',
@@ -71,14 +62,13 @@ export async function POST(req: Request): Promise<Response> {
       })
     }
 
-    // 6. Perform free calculation
     const result = calculate(birthDate, name, queryYear)
     const reportText = await generateReport(result, name, question)
 
     const id = crypto.randomUUID()
     await db.createCalculation({
       id,
-      userId,
+      userId: session.user.id,
       birthdate: birthDate,
       name: name.trim(),
       lifeNumber: result.lifePath,
@@ -90,7 +80,7 @@ export async function POST(req: Request): Promise<Response> {
       queryYear: queryYear ?? null,
     })
 
-    await db.incrementUserCredits(userId)
+    await db.incrementUserCredits(session.user.id)
 
     return NextResponse.json({
       type: 'new',
