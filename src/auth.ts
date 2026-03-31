@@ -49,8 +49,13 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         // Attach db user id so jwt callback can use it
         user.id = dbUser.id
         return true
-      } catch (err) {
-        console.error('[signIn callback]', err)
+      } catch (err: any) {
+        console.error('[signIn callback] ERROR:', {
+          message: err?.message,
+          stack: err?.stack,
+          name: err?.name,
+          cause: err?.cause,
+        })
         return false
       }
     },
