@@ -1,65 +1,49 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
+import { verifyJwt } from '@/lib/jwt'
 import { db } from '@/db'
 import { calculate, CalculatorResult } from '@/lib/calculator'
-import { createHash } from 'crypto'
+
+export const runtime = 'edge'
 
 export async function POST(req: Request): Promise<Response> {
   try {
-    const session = await auth()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const cookieHeader = req.headers.get('cookie') ?? ''
+    const token = cookieHeader.split(';').map(c => c.trim()).find(c => c.startsWith('session_token='))?.split('=').slice(1).join('=')
+    if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const payload = await verifyJwt(token)
+    if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const userId = payload.sub as string
 
     const { birthDate, name, queryYear, question } = await req.json()
     if (!birthDate || !name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const fingerprint = createHash('sha256')
-      .update(`${name}|${birthDate}|${queryYear ?? ''}|${question ?? ''}`)
-      .digest('hex')
+    // Edge-compatible fingerprint using Web Crypto
+    const raw = `${name}|${birthDate}|${queryYear ?? ''}|${question ?? ''}`
+    const hashBuf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw))
+    const fingerprint = Array.from(new Uint8Array(hashBuf)).map(b => b.toString(16).padStart(2, '0')).join('')
 
-    const existing = await db.getCalculationByFingerprint(fingerprint, session.user.id)
-    const user = await db.getUserById(session.user.id)
+    const existing = await db.getCalculationByFingerprint(fingerprint, userId)
+    const user = await db.getUserById(userId)
     const creditsUsed = user?.freeCreditsUsed ?? 0
 
     if (existing) {
       if (existing.isPaid) {
-        return NextResponse.json({
-          type: 'existing_paid',
-          id: existing.id,
-          reportText: existing.reportText,
-          message: '历史已付费报告',
-        })
+        return NextResponse.json({ type: 'existing_paid', id: existing.id, reportText: existing.reportText, message: '历史已付费报告' })
       }
       if (creditsUsed >= 1) {
-        return NextResponse.json({
-          type: 'unpaid_no_credits',
-          id: existing.id,
-          fingerprint,
-          message: '此配置需要付费',
-        })
+        return NextResponse.json({ type: 'unpaid_no_credits', id: existing.id, fingerprint, message: '此配置需要付费' })
       }
       const result = calculate(birthDate, name, queryYear)
       const reportText = await generateReport(result, name, question)
       await db.updateCalculation(existing.id, { reportText })
-      await db.incrementUserCredits(session.user.id)
-      return NextResponse.json({
-        type: 'new_with_credit',
-        id: existing.id,
-        reportText,
-        result,
-        creditsRemaining: 0,
-      })
+      await db.incrementUserCredits(userId)
+      return NextResponse.json({ type: 'new_with_credit', id: existing.id, reportText, result, creditsRemaining: 0 })
     }
 
     if (creditsUsed >= 1) {
-      return NextResponse.json({
-        type: 'no_credits',
-        fingerprint,
-        message: '免费次数已用尽，需要付费',
-      })
+      return NextResponse.json({ type: 'no_credits', fingerprint, message: '免费次数已用尽，需要付费' })
     }
 
     const result = calculate(birthDate, name, queryYear)
@@ -67,28 +51,13 @@ export async function POST(req: Request): Promise<Response> {
 
     const id = crypto.randomUUID()
     await db.createCalculation({
-      id,
-      userId: session.user.id,
-      birthdate: birthDate,
-      name: name.trim(),
-      lifeNumber: result.lifePath,
-      lang: 'zh',
-      reportText,
-      fingerprint,
-      isPaid: 0,
-      question: question ?? null,
-      queryYear: queryYear ?? null,
+      id, userId, birthdate: birthDate, name: name.trim(),
+      lifeNumber: result.lifePath, lang: 'zh', reportText,
+      fingerprint, isPaid: 0, question: question ?? null, queryYear: queryYear ?? null,
     })
+    await db.incrementUserCredits(userId)
 
-    await db.incrementUserCredits(session.user.id)
-
-    return NextResponse.json({
-      type: 'new',
-      id,
-      reportText,
-      result,
-      creditsRemaining: 0,
-    })
+    return NextResponse.json({ type: 'new', id, reportText, result, creditsRemaining: 0 })
   } catch (err) {
     console.error('[/api/calculate]', err)
     return NextResponse.json({ error: String(err) }, { status: 500 })
@@ -116,16 +85,9 @@ ${question ? `用户问题：${question}` : ''}`
 
   const res = await fetch('https://api.deepseek.com/chat/completions', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model: 'deepseek-chat',
-      messages: [{ role: 'user', content: prompt }],
-    }),
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}` },
+    body: JSON.stringify({ model: 'deepseek-chat', messages: [{ role: 'user', content: prompt }] }),
   })
-
   const data = await res.json()
   return data.choices?.[0]?.message?.content ?? '报告生成失败，请重试'
 }

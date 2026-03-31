@@ -47,8 +47,8 @@ export default function DashboardPage() {
   }, [router])
 
   const handleLogout = async () => {
-    await fetch('/api/auth/signout', { method: 'POST' }).catch(() => {})
-    router.push('/api/auth/signout')
+    await fetch('/api/auth/logout').catch(() => {})
+    router.push('/api/auth/logout')
   }
 
   if (loading) {
@@ -69,7 +69,7 @@ export default function DashboardPage() {
           ← 返回计算器
         </Link>
         <a
-          href="/api/auth/signout"
+          href="/api/auth/logout"
           className="text-sm text-gray-500 hover:text-red-500 transition"
         >
           退出登录

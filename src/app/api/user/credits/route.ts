@@ -1,17 +1,18 @@
 import { NextResponse } from 'next/server'
-import { auth } from '@/auth'
+import { verifyJwt } from '@/lib/jwt'
 import { db } from '@/db'
 
-export async function GET() {
-  const session = await auth()
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+export const runtime = 'edge'
 
-  const user = await db.getUserById(session.user.id)
-  if (!user) {
-    return NextResponse.json({ error: 'User not found' }, { status: 404 })
-  }
+export async function GET(req: Request) {
+  const cookieHeader = req.headers.get('cookie') ?? ''
+  const token = cookieHeader.split(';').map(c => c.trim()).find(c => c.startsWith('session_token='))?.split('=').slice(1).join('=')
+  if (!token) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const payload = await verifyJwt(token)
+  if (!payload) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const user = await db.getUserById(payload.sub as string)
+  if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
 
   return NextResponse.json({
     freeCreditsUsed: user.freeCreditsUsed,
